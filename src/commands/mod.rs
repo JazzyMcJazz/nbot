@@ -1,19 +1,15 @@
 use clap::ArgMatches;
 
-mod docker;
 mod nginx;
 
 use nginx::Nginx;
 
-use crate::utils::spinner::Spinner;
+use crate::{configs::project::Project, utils::spinner::Spinner};
 
-pub fn process_args(args: ArgMatches) {
+pub fn process_matches(args: ArgMatches) {
     match args.subcommand() {
-        Some(("docker", sync_matches)) => {
-            docker::process(sync_matches);
-        }
         Some(("nginx", sync_matches)) => {
-            Nginx::process_args(sync_matches);
+            Nginx::process_matches(sync_matches);
         }
         Some(("up", _)) => {
             let mut spinner = Spinner::new();
@@ -27,6 +23,10 @@ pub fn process_args(args: ArgMatches) {
             spinner.start("");
             Nginx::stop(remove, true);
             spinner.stop("All containers stopped.");
+        }
+        Some(("run", args)) => {
+            let apps = Project::from_cli(args);
+            dbg!(apps);
         }
         _ => unreachable!(),
     }
