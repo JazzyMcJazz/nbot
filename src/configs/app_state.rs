@@ -2,20 +2,26 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{fs, io::Write, process};
 
-use crate::utils::dirs::Dirs;
+use crate::{models::Project, utils::dirs::Dirs};
 
-use super::project::Project;
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppState {
-    projects: Vec<Project>,
+    container_prefix: String,
+    image_prefix: String,
+    network_prefix: String,
+    pub projects: Vec<Project>,
 }
 
 impl AppState {
     fn default() -> Self {
-        Self { projects: vec![] }
+        Self {
+            container_prefix: String::from("nbot_"),
+            image_prefix: String::from("nbot_"),
+            network_prefix: String::from("nbot_"),
+            projects: vec![],
+        }
     }
-    pub fn new() -> Self {
+    pub fn from_storage() -> Self {
         let config_file = Dirs::config_file();
 
         if let Ok(config) = fs::read_to_string(config_file) {
@@ -41,6 +47,26 @@ impl AppState {
             state
         }
     }
+
+    pub fn add_or_update_project(&mut self, project: Project) {
+        if let Some(existing_project) = self.projects.iter_mut().find(|p| p.name == project.name) {
+            for app in project.apps {
+                if let Some(existing_app) = existing_project
+                    .apps
+                    .iter_mut()
+                    .find(|a| a.name == app.name)
+                {
+                    existing_app.update(app);
+                } else {
+                    existing_project.apps.push(app.to_owned());
+                }
+            }
+        } else {
+            self.projects.push(project);
+        }
+        self.save();
+    }
+
     pub fn save(&self) {
         let config_file = Dirs::config_file();
         let config = serde_json::to_string(&self).unwrap();

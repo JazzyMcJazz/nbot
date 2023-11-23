@@ -1,18 +1,92 @@
+use std::process::{Command, Stdio};
+
 use clap::ArgMatches;
+use run_script::run_script;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+use crate::utils::networks::Network;
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct App {
-    name: String,
+    pub name: String,
     image: String,
     container_name: String,
     ports: Vec<String>,
     env_vars: Vec<String>,
     volumes: Vec<String>,
     depends_on: Vec<String>,
+    domains: Option<Vec<String>>,
 }
 
 impl App {
+    pub fn run(&self, networks: &Vec<&Network>) {
+        let mut args = vec!["run", "-d", "--name", self.container_name.as_str()];
+
+        for env_var in &self.env_vars {
+            args.push("-e");
+            args.push(env_var);
+        }
+
+        for volume in &self.volumes {
+            args.push("-v");
+            args.push(volume);
+        }
+
+        args.push(self.image.as_str());
+
+        self.stop();
+        let Ok(mut command) = Command::new("docker")
+            .args(args)
+            .stdout(Stdio::null())
+            .spawn()
+        else {
+            return;
+        };
+
+        let Ok(_) = command.wait() else {
+            return;
+        };
+
+        for network in networks {
+            let (connect, name) = match network {
+                Network::Internal(name) => (true, name),
+                Network::Nginx(name) => (self.domains.is_some(), name),
+            };
+            if connect {
+                run_script!(format!(
+                    "docker network connect {} {}",
+                    name, self.container_name
+                ))
+                .unwrap_or_default();
+            }
+        }
+    }
+
+    pub fn stop(&self) {
+        run_script!(format!("docker stop {}", self.container_name)).unwrap_or_default();
+        run_script!(format!("docker rm {}", self.container_name)).unwrap_or_default();
+    }
+
+    pub fn is_running(&self) -> bool {
+        let output = run_script!(format!("docker ps -q -f name={}", self.container_name));
+        if let Ok((_, output, _)) = output {
+            !output.is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub fn update(&mut self, new: App) {
+        self.name = new.name;
+        self.image = new.image;
+        self.container_name = new.container_name;
+        self.ports = new.ports;
+        self.env_vars = new.env_vars;
+        self.volumes = new.volumes;
+        self.depends_on = new.depends_on;
+        self.domains = new.domains;
+    }
+
     pub fn from_cli(args: &ArgMatches, project: &String) -> Vec<Self> {
         let mut apps = Self::collect_flags::<String>(args, "app");
         let mut image_list = Self::collect_flags::<String>(args, "image");
@@ -20,6 +94,7 @@ impl App {
         let mut port_list = Self::collect_flags::<String>(args, "port");
         let mut volume_list = Self::collect_flags::<String>(args, "volume");
         let mut depends_on_list = Self::collect_flags::<String>(args, "depends-on");
+        let mut domain_list = Self::collect_flags::<String>(args, "domain");
 
         let mut app_list: Vec<App> = vec![];
         while let Some(app) = apps.pop() {
@@ -28,6 +103,7 @@ impl App {
             let mut ports: Vec<String> = vec![];
             let mut volumes: Vec<String> = vec![];
             let mut depends_on: Vec<String> = vec![];
+            let mut domains: Vec<String> = vec![];
 
             while let Some(image_name) = image_list.pop() {
                 if image_name.index > app.index {
@@ -81,6 +157,21 @@ impl App {
                 }
             }
 
+            while let Some(domain) = domain_list.pop() {
+                if domain.index > app.index {
+                    domains.push(domain.value);
+                } else {
+                    domain_list.push(domain);
+                    break;
+                }
+            }
+
+            let domains = if domains.is_empty() {
+                None
+            } else {
+                Some(domains)
+            };
+
             app_list.push(App {
                 name: app.value.to_owned(),
                 image,
@@ -89,6 +180,7 @@ impl App {
                 ports,
                 volumes,
                 depends_on,
+                domains,
             });
         }
 
@@ -103,6 +195,8 @@ impl App {
             panic!("Error: Invalid volume outside of app definition");
         } else if !depends_on_list.is_empty() {
             panic!("Error: Invalid depends-on outside of app definition");
+        } else if !domain_list.is_empty() {
+            panic!("Error: Invalid domain outside of app definition");
         }
 
         for app in &app_list {

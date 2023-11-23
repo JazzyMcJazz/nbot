@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     files::*,
-    utils::{dirs::Dirs, spinner::Spinner},
+    utils::{dirs::Dirs, networks::Network, spinner::Spinner},
 };
 
 pub struct Nginx;
@@ -103,7 +103,7 @@ impl Nginx {
     pub fn stop(remove: bool, silent: bool) {
         let mut spinner = Spinner::new();
         if !silent {
-            spinner.start("Stopping Nginx ");
+            spinner.start("Stopping Nginx ".to_owned());
         }
 
         run_script!("docker stop nbot_nginx").unwrap();
@@ -112,7 +112,36 @@ impl Nginx {
         }
 
         if !silent {
-            spinner.stop("done");
+            spinner.stop("done".to_owned());
         }
+    }
+
+    pub fn connect_to_network(network: &Network) {
+        match network {
+            Network::Internal(_) => {}
+            Network::Nginx(name) => {
+                if !Nginx::is_connected(network) {
+                    run_script!(format!("docker network connect {name} nbot_nginx"))
+                        .unwrap_or_default();
+                }
+            }
+        };
+    }
+
+    fn is_connected(network: &Network) -> bool {
+        match network {
+            Network::Internal(_) => false,
+            Network::Nginx(name) => {
+                let (_, output, _) =
+                    run_script!(format!("docker network inspect {name} | grep nbot_nginx"))
+                        .unwrap();
+                !output.is_empty()
+            }
+        }
+    }
+
+    pub fn is_running() -> bool {
+        let (_, output, _) = run_script!("docker ps -a | grep nbot/nginx").unwrap();
+        !output.is_empty()
     }
 }

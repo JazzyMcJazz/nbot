@@ -20,17 +20,18 @@ impl Spinner {
             message_length: 0,
         }
     }
-    pub fn start(&mut self, message: &'static str) {
+    pub fn start(&mut self, message: String) {
         let running = self.running.clone();
         running.store(true, Ordering::SeqCst);
 
         let spinner_chars = ['|', '/', '-', '\\'];
         let delay = Duration::from_millis(100);
 
+        let moved = message.clone();
         let handle = thread::spawn(move || {
             let mut i = 0;
             while running.load(Ordering::SeqCst) {
-                print!("\r{}{}", message, spinner_chars[i]);
+                print!("\r{}{}", moved, spinner_chars[i]);
                 io::stdout().flush().unwrap();
                 i = (i + 1) % spinner_chars.len();
                 thread::sleep(delay);
@@ -44,7 +45,7 @@ impl Spinner {
         self.handle = Some(handle);
     }
 
-    pub fn stop(&mut self, message: &'static str) {
+    pub fn stop(&mut self, message: String) {
         self.running.store(false, Ordering::SeqCst);
 
         if let Some(handle) = self.handle.take() {

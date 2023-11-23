@@ -17,13 +17,6 @@ pub fn get_matches() -> ArgMatches {
             Command::new("down")
                 .about("Stops all containers")
                 .subcommand_required(false)
-                .arg(
-                    Arg::new("remove")
-                        .short('r')
-                        .long("rm")
-                        .action(ArgAction::SetTrue)
-                        .help("Removes all containers after stopping them")
-                )
         )
         .subcommand(
             Command::new("nginx")
@@ -43,7 +36,7 @@ pub fn get_matches() -> ArgMatches {
                 )
                 .subcommand(
                     Command::new("stop")
-                        .about("Stops and removes nginx container")
+                        .about("Stops the nginx container")
                         .arg(
                             Arg::new("remove")
                                 .short('r')
@@ -57,10 +50,10 @@ pub fn get_matches() -> ArgMatches {
             Command::new("run")
                 .about("Creates or updates a project.\nRun \"nbot run --help\" for more information.")
                 .arg(
-                    Arg::new("project")
+                    Arg::new("name")
                         .value_parser(value_parser!(String))
                         .short('n')
-                        .long("project")
+                        .long("name")
                         .help("Name of the project (required)")
                         .required(true)
                 )
@@ -111,6 +104,13 @@ pub fn get_matches() -> ArgMatches {
                         .help("Apps that this app depends on (optional, multiple allowed per app)")
                         .required(false)
                         .action(ArgAction::Append)
+                )
+                .arg(
+                    Arg::new("domain")
+                        .short('o')
+                        .long("domain")
+                        .help("Domain to use for the project (required if --publish is used)")
+                        .required(false)
                 )
         )
         .get_matches()

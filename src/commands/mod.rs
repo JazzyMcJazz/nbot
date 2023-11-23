@@ -1,10 +1,14 @@
 use clap::ArgMatches;
 
 mod nginx;
+mod run;
+mod up_down;
 
 use nginx::Nginx;
+use run::Run;
+use up_down::UpDown;
 
-use crate::{configs::project::Project, utils::spinner::Spinner};
+use crate::models::Project;
 
 pub fn process_matches(args: ArgMatches) {
     match args.subcommand() {
@@ -12,21 +16,14 @@ pub fn process_matches(args: ArgMatches) {
             Nginx::process_matches(sync_matches);
         }
         Some(("up", _)) => {
-            let mut spinner = Spinner::new();
-            spinner.start("");
-            Nginx::run(false, true);
-            spinner.stop("All containers started.");
+            UpDown::up();
         }
-        Some(("down", args)) => {
-            let remove = args.get_flag("remove");
-            let mut spinner = Spinner::new();
-            spinner.start("");
-            Nginx::stop(remove, true);
-            spinner.stop("All containers stopped.");
+        Some(("down", _)) => {
+            UpDown::down();
         }
         Some(("run", args)) => {
-            let apps = Project::from_cli(args);
-            dbg!(apps);
+            let project = Project::from_cli(args);
+            Run::project(project);
         }
         _ => unreachable!(),
     }

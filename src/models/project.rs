@@ -3,16 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use super::app::App;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Project {
-    name: String,
-    apps: Vec<App>,
+    pub name: String,
+    pub apps: Vec<App>,
 }
 
 impl Project {
     pub fn from_cli(args: &ArgMatches) -> Self {
         let name = args
-            .get_one::<String>("project")
+            .get_one::<String>("name")
             .expect("No project name provided")
             .to_owned();
         let apps = App::from_cli(args, &name);
