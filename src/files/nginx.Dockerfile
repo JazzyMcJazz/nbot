@@ -1,7 +1,7 @@
 FROM nginx:alpine
 
 RUN apk update
-RUN apk add certbot certbot-nginx inotify-tools
+RUN apk add certbot certbot-nginx inotify-tools openssl
 
 RUN mkdir /etc/letsencrypt
 

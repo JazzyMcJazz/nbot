@@ -58,7 +58,7 @@ impl Dirs {
         nginx_volumes
     }
 
-    fn nginx_certs() -> String {
+    pub fn nginx_certs() -> String {
         let nginx = Self::nginx_volumes();
         let certs = format!("{}/certs", nginx);
         if fs::read_dir(&certs).is_err() {

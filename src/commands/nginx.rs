@@ -162,6 +162,38 @@ impl Nginx {
             // }
         }
     }
+
+    pub fn generate_certificates(app: &App, openssl: bool) {
+        let domains = app.domains.as_ref().unwrap();
+
+        for domain in domains {
+            let certs_dir = Dirs::nginx_certs();
+            let command = format!("mkdir -p {certs_dir}/live/{domain}");
+
+            run_script!(command).unwrap_or_default();
+
+            let command = if openssl {
+                format!(
+                    r#"
+                    docker exec nbot_nginx \
+                    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                    -keyout /etc/letsencrypt/live/{domain}/privkey.pem \
+                    -out /etc/letsencrypt/live/{domain}/fullchain.pem \
+                    -subj "/C=""/ST=""/L=""/O=""/OU=""/CN={domain}"
+                "#
+                )
+            } else {
+                todo!()
+            };
+
+            let Ok((code, _, error)) = run_script!(command) else {
+                return;
+            };
+            if code != 0 {
+                eprintln!("{error}");
+            };
+        }
+    }
 }
 
 //{name}}

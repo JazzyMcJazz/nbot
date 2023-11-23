@@ -1,4 +1,7 @@
+use std::thread::sleep;
+
 use crate::{models::Project, utils::networks::Network, APP_STATE};
+use run_script::run_script;
 
 use super::nginx::Nginx;
 
@@ -17,8 +20,32 @@ impl Run {
 
         for app in &project.apps {
             app.run(&vec![&networks.0, &networks.1]);
+
             if app.domains.is_some() {
-                Nginx::add_conf(app)
+                // wait until container is up
+                let mut up = false;
+                for seconds in [1, 3, 5, 0] {
+                    let (code, _, _) = run_script!(format!(
+                        "docker exec nbot_nginx curl -s http://{}:{}",
+                        app.container_name, app.ports[0]
+                    ))
+                    .unwrap_or_default();
+                    if code != 0 {
+                        sleep(std::time::Duration::from_secs(seconds));
+                        continue;
+                    }
+
+                    up = true;
+                    break;
+                }
+
+                if !up {
+                    eprintln!("Failed to start app {}", app.name);
+                    continue;
+                }
+
+                Nginx::generate_certificates(app, true);
+                Nginx::add_conf(app);
             }
         }
 
