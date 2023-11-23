@@ -57,4 +57,58 @@ impl Dirs {
         }
         nginx_volumes
     }
+
+    fn nginx_certs() -> String {
+        let nginx = Self::nginx_volumes();
+        let certs = format!("{}/certs", nginx);
+        if fs::read_dir(&certs).is_err() {
+            fs::create_dir_all(&certs).expect("Failed to create nginx certs directory");
+        }
+        certs
+    }
+
+    pub fn nginx_confd() -> String {
+        let nginx = Self::nginx_volumes();
+        let confd = format!("{}/conf.d", nginx);
+        if fs::read_dir(&confd).is_err() {
+            fs::create_dir_all(&confd).expect("Failed to create nginx conf.d directory");
+        }
+        confd
+    }
+
+    fn nginx_html() -> String {
+        let nginx = Self::nginx_volumes();
+        let html = format!("{}/html", nginx);
+        if fs::read_dir(&html).is_err() {
+            fs::create_dir_all(&html).expect("Failed to create nginx html directory");
+        }
+        html
+    }
+
+    fn nginx_static() -> String {
+        let nginx = Self::nginx_volumes();
+        let static_dir = format!("{}/static", nginx);
+        if fs::read_dir(&static_dir).is_err() {
+            fs::create_dir_all(&static_dir).expect("Failed to create nginx static directory");
+        }
+        static_dir
+    }
+
+    fn nginx_media() -> String {
+        let nginx = Self::nginx_volumes();
+        let media = format!("{}/media", nginx);
+        if fs::read_dir(&media).is_err() {
+            fs::create_dir_all(&media).expect("Failed to create nginx media directory");
+        }
+        media
+    }
+
+    pub fn init_volumes() {
+        // Called in order to create the directories if they don't exist
+        let _ = Self::nginx_certs();
+        let _ = Self::nginx_confd();
+        let _ = Self::nginx_html();
+        let _ = Self::nginx_static();
+        let _ = Self::nginx_media();
+    }
 }

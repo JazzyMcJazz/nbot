@@ -10,14 +10,19 @@ impl Run {
             Nginx::run(false, true);
         }
 
-        let internal_network = Network::Internal(format!("nbot_{}_net", &project.name)).create();
-        let nginx_network = Network::Nginx(format!("nbot_nginx_{}_net", &project.name)).create();
+        let networks = (
+            Network::Internal(format!("nbot_{}_net", &project.name)).create(),
+            Network::Nginx(format!("nbot_nginx_{}_net", &project.name)).create(),
+        );
 
         for app in &project.apps {
-            app.run(&vec![&internal_network, &nginx_network]);
+            app.run(&vec![&networks.0, &networks.1]);
+            if app.domains.is_some() {
+                Nginx::add_conf(app)
+            }
         }
 
-        Nginx::connect_to_network(&nginx_network);
+        Nginx::connect_to_network(&networks.1);
 
         let mut app_state = APP_STATE.to_owned();
         app_state.add_or_update_project(project);

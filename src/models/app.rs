@@ -10,12 +10,12 @@ use crate::utils::networks::Network;
 pub struct App {
     pub name: String,
     image: String,
-    container_name: String,
-    ports: Vec<String>,
+    pub container_name: String,
+    pub ports: Vec<String>,
     env_vars: Vec<String>,
     volumes: Vec<String>,
     depends_on: Vec<String>,
-    domains: Option<Vec<String>>,
+    pub domains: Option<Vec<String>>,
 }
 
 impl App {

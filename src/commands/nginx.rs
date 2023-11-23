@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     files::*,
+    models::App,
     utils::{dirs::Dirs, networks::Network, spinner::Spinner},
 };
 
@@ -40,6 +41,7 @@ impl Nginx {
         let dockerfile = format!("{}/nbotnginx.Dockerfile", temp_dir);
         let entrypoint = format!("{}/nbotnginx_entrypoint.sh", temp_dir);
         let scheduler = format!("{}/nbotnginx_scheduler.txt", temp_dir);
+        let default_conf = format!("{}/nbotnginx_default.conf", temp_dir);
 
         // create files
         fs::write(dockerfile, NGINX_DOCKERFILE).unwrap();
@@ -49,6 +51,7 @@ impl Nginx {
             "0 12 * * * /usr/bin/certbot renew --quiet >> /var/log/cron.log 2>&1",
         )
         .unwrap();
+        fs::write(default_conf, NGINX_DEFAULT_CONF).unwrap();
 
         let Ok((_, img, _)) = run_script!("docker images | grep nbot/nginx") else {
             return;
@@ -87,8 +90,8 @@ impl Nginx {
         }
 
         let volume_dir = Dirs::nginx_volumes();
-        fs::create_dir_all(&volume_dir).unwrap();
 
+        Dirs::init_volumes();
         let docker_run = NGINX_RUN.replace("{{volume_dir}}", &volume_dir);
 
         let Ok((code, _, error)) = run_script!(docker_run) else {
@@ -120,28 +123,48 @@ impl Nginx {
         match network {
             Network::Internal(_) => {}
             Network::Nginx(name) => {
-                if !Nginx::is_connected(network) {
-                    run_script!(format!("docker network connect {name} nbot_nginx"))
-                        .unwrap_or_default();
-                }
+                run_script!(format!("docker network connect {name} nbot_nginx"))
+                    .unwrap_or_default();
             }
         };
-    }
-
-    fn is_connected(network: &Network) -> bool {
-        match network {
-            Network::Internal(_) => false,
-            Network::Nginx(name) => {
-                let (_, output, _) =
-                    run_script!(format!("docker network inspect {name} | grep nbot_nginx"))
-                        .unwrap();
-                !output.is_empty()
-            }
-        }
     }
 
     pub fn is_running() -> bool {
         let (_, output, _) = run_script!("docker ps -a | grep nbot/nginx").unwrap();
         !output.is_empty()
     }
+
+    pub fn add_conf(app: &App) {
+        let domains = app.domains.as_ref().unwrap();
+        let mut files = Vec::<(String, String)>::new();
+        for domain in domains {
+            let mut conf = NGINX_TEMPLATE_CONF
+                .replace("{{name}}", &app.container_name)
+                .replace("{{port}}", &app.ports[0])
+                .replace("{{domain}}", domain);
+
+            // If domain does not have a subdomain, add www subdomain
+            let www_domain = if domain.split('.').count() == 2 {
+                format!(" www.{}", domain) // must have space in front
+            } else {
+                "".to_owned()
+            };
+            conf = conf.replace("{{www_domain}}", www_domain.as_str());
+
+            files.push((domain.to_owned(), conf));
+        }
+
+        let confd = Dirs::nginx_confd();
+        for (file_name, content) in files {
+            let file_path = format!("{}/{}.conf", confd, file_name);
+            // if fs::read_to_string(&file_path).is_err() {
+            fs::write(&file_path, content).unwrap();
+            // }
+        }
+    }
 }
+
+//{name}}
+//{{port}}
+//{{domain}}
+//{{www_domain}}

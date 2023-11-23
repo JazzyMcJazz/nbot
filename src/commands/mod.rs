@@ -1,10 +1,12 @@
 use clap::ArgMatches;
 
 mod nginx;
+mod rm;
 mod run;
 mod up_down;
 
 use nginx::Nginx;
+use rm::Rm;
 use run::Run;
 use up_down::UpDown;
 
@@ -24,6 +26,9 @@ pub fn process_matches(args: ArgMatches) {
         Some(("run", args)) => {
             let project = Project::from_cli(args);
             Run::project(project);
+        }
+        Some(("rm", args)) => {
+            Rm::projects(args);
         }
         _ => unreachable!(),
     }

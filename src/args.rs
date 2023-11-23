@@ -47,6 +47,17 @@ pub fn get_matches() -> ArgMatches {
                 )
         )
         .subcommand(
+            Command::new("rm")
+                .about("Removes a project")
+                .arg(
+                    Arg::new("project")
+                        .value_parser(value_parser!(String))
+                        .action(ArgAction::Append)
+                        .help("Name(s) of the project to remove (required)")
+                        .required(true)
+                )
+        )
+        .subcommand(
             Command::new("run")
                 .about("Creates or updates a project.\nRun \"nbot run --help\" for more information.")
                 .arg(
