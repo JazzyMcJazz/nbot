@@ -124,5 +124,9 @@ pub fn get_matches() -> ArgMatches {
                         .required(false)
                 )
         )
+        .subcommand(
+            Command::new("status")
+                .about("Displays the status of all projects")
+        )
         .get_matches()
 }

@@ -9,11 +9,11 @@ use crate::utils::networks::Network;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct App {
     pub name: String,
-    image: String,
+    pub image: String,
     pub container_name: String,
     pub port: Option<String>,
-    env_vars: Vec<String>,
-    volumes: Vec<String>,
+    pub env_vars: Vec<String>,
+    pub volumes: Vec<String>,
     depends_on: Vec<String>,
     pub domains: Option<Vec<String>>,
 }
