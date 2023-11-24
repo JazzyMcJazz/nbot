@@ -260,7 +260,3 @@ impl Nginx {
     }
 }
 
-//{name}}
-//{{port}}
-//{{domain}}
-//{{www_domain}}

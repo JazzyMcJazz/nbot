@@ -107,7 +107,7 @@ impl Dirs {
         // Called in order to create the directories if they don't exist
         let _ = Self::nginx_certs();
         let _ = Self::nginx_confd();
-        let _ = Self::nginx_html();
+        // let _ = Self::nginx_html();
         let _ = Self::nginx_static();
         let _ = Self::nginx_media();
     }
