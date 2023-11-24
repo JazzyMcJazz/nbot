@@ -1,6 +1,8 @@
 use clap::ArgMatches;
 
-use crate::APP_STATE;
+use crate::{utils::networks::Network, APP_STATE};
+
+use super::nginx::Nginx;
 
 pub struct Rm;
 
@@ -27,10 +29,17 @@ impl Rm {
 
         for project in projects_to_remove {
             for app in &project.apps {
+                Nginx::remove_conf(app);
                 if app.is_running() {
                     app.stop();
                 }
             }
+
+            let project_net = Network::internal_from_project(&project.name);
+            let nginx_net = Network::nginx_from_project(&project.name);
+            Nginx::disconnect_from_network(&nginx_net);
+            project_net.remove();
+            nginx_net.remove();
         }
 
         state.projects = projects_to_keep;

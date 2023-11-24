@@ -11,7 +11,7 @@ pub struct App {
     pub name: String,
     image: String,
     pub container_name: String,
-    pub ports: Vec<String>,
+    pub port: Option<String>,
     env_vars: Vec<String>,
     volumes: Vec<String>,
     depends_on: Vec<String>,
@@ -20,7 +20,13 @@ pub struct App {
 
 impl App {
     pub fn run(&self, networks: &Vec<&Network>) {
-        let mut args = vec!["run", "-d", "--name", self.container_name.as_str()];
+        let mut args = vec![
+            "run",
+            "-d",
+            "--init",
+            "--name",
+            self.container_name.as_str(),
+        ];
 
         for env_var in &self.env_vars {
             args.push("-e");
@@ -80,7 +86,7 @@ impl App {
         self.name = new.name;
         self.image = new.image;
         self.container_name = new.container_name;
-        self.ports = new.ports;
+        self.port = new.port;
         self.env_vars = new.env_vars;
         self.volumes = new.volumes;
         self.depends_on = new.depends_on;
@@ -100,7 +106,7 @@ impl App {
         while let Some(app) = apps.pop() {
             let mut image: String = String::new();
             let mut env_vars: Vec<String> = vec![];
-            let mut ports: Vec<String> = vec![];
+            let mut virtual_port: Option<String> = None;
             let mut volumes: Vec<String> = vec![];
             let mut depends_on: Vec<String> = vec![];
             let mut domains: Vec<String> = vec![];
@@ -132,7 +138,10 @@ impl App {
 
             while let Some(port) = port_list.pop() {
                 if port.index > app.index {
-                    ports.push(port.value);
+                    if virtual_port.is_some() {
+                        panic!("Error: App cannot have more than one port");
+                    }
+                    virtual_port = Some(port.value);
                 } else {
                     port_list.push(port);
                     break;
@@ -177,7 +186,7 @@ impl App {
                 image,
                 container_name: format!("nbot_{}_{}", project, app.value),
                 env_vars,
-                ports,
+                port: virtual_port,
                 volumes,
                 depends_on,
                 domains,

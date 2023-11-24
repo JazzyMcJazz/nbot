@@ -7,6 +7,14 @@ pub enum Network {
 }
 
 impl Network {
+    pub fn internal_from_project(project_name: &String) -> Self {
+        Network::Internal(format!("nbot_{}_net", project_name))
+    }
+
+    pub fn nginx_from_project(project_name: &String) -> Self {
+        Network::Nginx(format!("nbot_nginx_{}_net", project_name))
+    }
+
     pub fn create(self) -> Self {
         let network_name = match &self {
             Network::Internal(name) => name,
@@ -24,6 +32,16 @@ impl Network {
             return self;
         }
 
+        self
+    }
+
+    pub fn remove(self) -> Self {
+        let network_name = match &self {
+            Network::Internal(name) => name,
+            Network::Nginx(name) => name,
+        };
+
+        run_script!(format!("docker network rm {}", network_name)).unwrap_or_default();
         self
     }
 }

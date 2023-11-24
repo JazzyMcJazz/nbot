@@ -129,6 +129,16 @@ impl Nginx {
         };
     }
 
+    pub fn disconnect_from_network(network: &Network) {
+        match network {
+            Network::Internal(_) => {}
+            Network::Nginx(name) => {
+                run_script!(format!("docker network disconnect {name} nbot_nginx"))
+                    .unwrap_or_default();
+            }
+        };
+    }
+
     pub fn is_running() -> bool {
         let (_, output, _) = run_script!("docker ps -a | grep nbot/nginx").unwrap();
         !output.is_empty()
@@ -140,8 +150,14 @@ impl Nginx {
         for domain in domains {
             let mut conf = NGINX_TEMPLATE_CONF
                 .replace("{{name}}", &app.container_name)
-                .replace("{{port}}", &app.ports[0])
                 .replace("{{domain}}", domain);
+
+            let port = match &app.port {
+                Some(port) => port,
+                None => "80",
+            };
+
+            conf = conf.replace("{{port}}", port);
 
             // If domain does not have a subdomain, add www subdomain
             let www_domain = if domain.split('.').count() == 2 {
@@ -160,6 +176,17 @@ impl Nginx {
             // if fs::read_to_string(&file_path).is_err() {
             fs::write(&file_path, content).unwrap();
             // }
+        }
+    }
+
+    pub fn remove_conf(app: &App) {
+        let domains = app.domains.as_ref().unwrap();
+        let confd = Dirs::nginx_confd();
+        for domain in domains {
+            let file_path = format!("{}/{}.conf", confd, domain);
+            if fs::read_to_string(&file_path).is_ok() {
+                fs::remove_file(&file_path).unwrap();
+            }
         }
     }
 

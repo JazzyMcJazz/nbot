@@ -14,39 +14,53 @@ impl Run {
         }
 
         let networks = (
-            Network::Internal(format!("nbot_{}_net", &project.name)).create(),
-            Network::Nginx(format!("nbot_nginx_{}_net", &project.name)).create(),
+            Network::internal_from_project(&project.name).create(),
+            Network::nginx_from_project(&project.name).create(),
         );
 
         for app in &project.apps {
             app.run(&vec![&networks.0, &networks.1]);
+            let mut up = false;
 
             if app.domains.is_some() {
                 // wait until container is up
-                let mut up = false;
-                for seconds in [1, 3, 5, 0] {
-                    let (code, _, _) = run_script!(format!(
-                        "docker exec nbot_nginx curl -s http://{}:{}",
-                        app.container_name, app.ports[0]
-                    ))
-                    .unwrap_or_default();
+                for seconds in [1, 3, 5] {
+                    let command = if let Some(port) = &app.port {
+                        format!(
+                            "docker exec nbot_nginx curl -Iks http://{}:{}",
+                            &app.container_name, port
+                        )
+                    } else {
+                        format!(
+                            "docker exec nbot_nginx curl -Iks http://{}",
+                            &app.container_name
+                        )
+                    };
+
+                    let (code, _, _) = run_script!(command).unwrap_or_default();
+
+                    dbg!(code);
+
                     if code != 0 {
-                        sleep(std::time::Duration::from_secs(seconds));
+                        if seconds != 5 {
+                            sleep(std::time::Duration::from_secs(seconds));
+                        }
                         continue;
                     }
 
                     up = true;
                     break;
                 }
-
-                if !up {
-                    eprintln!("Failed to start app {}", app.name);
-                    continue;
-                }
-
-                Nginx::generate_certificates(app, true);
-                Nginx::add_conf(app);
             }
+
+            if !up {
+                app.stop();
+                eprintln!("Failed to start app {}", app.name);
+                continue;
+            }
+
+            Nginx::generate_certificates(app, true);
+            Nginx::add_conf(app);
         }
 
         Nginx::connect_to_network(&networks.1);
