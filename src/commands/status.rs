@@ -16,6 +16,7 @@ struct AppStatus {
     image: String,
     volumes: String,
     env_vars: String,
+    certificate: String,
 }
 
 impl AppStatus {
@@ -52,6 +53,11 @@ impl AppStatus {
                 volumes.push_str(&format!("{linebreak}{volume}"));
             }
 
+            let certificate = match app.openssl {
+                Some(openssl) => if openssl { "openssl" } else { "letsencrypt" }.to_owned(),
+                None => String::new(),
+            };
+
             app_statuses.push(AppStatus {
                 project: project.to_owned(),
                 service: app.name,
@@ -63,6 +69,7 @@ impl AppStatus {
                 image: app.image,
                 env_vars,
                 volumes,
+                certificate,
             });
         }
         app_statuses

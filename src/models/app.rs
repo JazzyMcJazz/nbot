@@ -16,6 +16,8 @@ pub struct App {
     pub volumes: Vec<String>,
     depends_on: Vec<String>,
     pub domains: Option<Vec<String>>,
+    pub email: Option<String>,
+    pub openssl: Option<bool>,
 }
 
 impl App {
@@ -101,6 +103,8 @@ impl App {
         let mut volume_list = Self::collect_flags::<String>(args, "volume");
         let mut depends_on_list = Self::collect_flags::<String>(args, "depends-on");
         let mut domain_list = Self::collect_flags::<String>(args, "domain");
+        let mut email_list = Self::collect_flags::<String>(args, "email");
+        let mut openssl_list = Self::collect_flags::<bool>(args, "openssl");
 
         let mut app_list: Vec<App> = vec![];
         while let Some(app) = apps.pop() {
@@ -181,6 +185,36 @@ impl App {
                 Some(domains)
             };
 
+            let mut email: Option<String> = None;
+            while let Some(email_address) = email_list.pop() {
+                if email_address.index > app.index {
+                    if email.is_some() {
+                        panic!("Error: App cannot have more than one email");
+                    }
+                    email = Some(email_address.value);
+                } else {
+                    email_list.push(email_address);
+                    break;
+                }
+            }
+
+            if email.is_none() && domains.is_some() {
+                panic!("Error: App must have an email if it has domains. This is required for SSL certificates.");
+            }
+
+            let mut openssl: Option<bool> = None;
+            while let Some(openssl_flag) = openssl_list.pop() {
+                if openssl_flag.index > app.index {
+                    if openssl.is_some() {
+                        panic!("Error: App cannot have more than one openssl flag");
+                    }
+                    openssl = Some(openssl_flag.value);
+                } else {
+                    openssl_list.push(openssl_flag);
+                    break;
+                }
+            }
+
             app_list.push(App {
                 name: app.value.to_owned(),
                 image,
@@ -190,6 +224,8 @@ impl App {
                 volumes,
                 depends_on,
                 domains,
+                email,
+                openssl,
             });
         }
 
@@ -206,6 +242,8 @@ impl App {
             panic!("Error: Invalid depends-on outside of app definition");
         } else if !domain_list.is_empty() {
             panic!("Error: Invalid domain outside of app definition");
+        } else if !email_list.is_empty() {
+            panic!("Error: Invalid email outside of app definition");
         }
 
         for app in &app_list {

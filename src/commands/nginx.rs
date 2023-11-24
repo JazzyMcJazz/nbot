@@ -190,16 +190,34 @@ impl Nginx {
         }
     }
 
-    pub fn generate_certificates(app: &App, openssl: bool) {
+    pub fn generate_certificates(app: &App) {
         let domains = app.domains.as_ref().unwrap();
 
         for domain in domains {
             let certs_dir = Dirs::nginx_certs();
             let command = format!("mkdir -p {certs_dir}/live/{domain}");
+            let email = app.email.as_ref().unwrap();
 
             run_script!(command).unwrap_or_default();
 
-            let command = if openssl {
+            // check if certificate exists
+            let command = format!(
+                r#"
+                docker exec nbot_nginx \
+                openssl x509 -checkend 86400 -noout \
+                -in /etc/letsencrypt/live/{domain}/fullchain.pem
+            "#
+            );
+
+            let (code, _, _) = run_script!(command).unwrap_or_default();
+
+            if code == 0 {
+                continue;
+            }
+
+            let use_openssl = app.openssl.unwrap_or(false);
+
+            let command = if use_openssl {
                 format!(
                     r#"
                     docker exec nbot_nginx \
@@ -210,11 +228,21 @@ impl Nginx {
                 "#
                 )
             } else {
-                todo!()
+                format!(
+                    r#"
+                    docker exec nbot_nginx \
+                    certbot certonly --webroot \
+                    -w /usr/share/nginx/html \
+                    -d {domain} \
+                    --email {email} \
+                    --agree-tos \
+                    --non-interactive
+                "#
+                )
             };
 
             let Ok((code, _, error)) = run_script!(command) else {
-                return;
+                continue;
             };
             if code != 0 {
                 eprintln!("{error}");

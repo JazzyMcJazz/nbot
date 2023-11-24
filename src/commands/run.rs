@@ -67,7 +67,7 @@ impl Run {
                 spinner.stop(format!("{}: OK", app.name));
             }
 
-            Nginx::generate_certificates(app, true);
+            Nginx::generate_certificates(app);
             Nginx::add_conf(app);
         }
 
