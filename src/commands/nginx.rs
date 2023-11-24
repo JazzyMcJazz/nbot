@@ -200,22 +200,31 @@ impl Nginx {
 
             run_script!(command).unwrap_or_default();
 
+            let use_openssl = app.openssl.unwrap_or(false);
+
             // check if certificate exists
-            let command = format!(
-                r#"
-                docker exec nbot_nginx \
-                openssl x509 -checkend 86400 -noout \
-                -in /etc/letsencrypt/live/{domain}/fullchain.pem
-            "#
-            );
+            let command = if use_openssl {
+                format!(
+                    r#"
+                    docker exec nbot_nginx \
+                    openssl x509 -checkend 86400 -noout \
+                    -in /etc/letsencrypt/live/{domain}/fullchain.pem
+                "#
+                )
+            } else {
+                format!(
+                    r#"
+                    docker exec nbot_nginx \
+                    certbot certificates | grep {domain}
+                "#
+                )
+            };
 
             let (code, _, _) = run_script!(command).unwrap_or_default();
 
             if code == 0 {
                 continue;
             }
-
-            let use_openssl = app.openssl.unwrap_or(false);
 
             let command = if use_openssl {
                 format!(
@@ -231,7 +240,7 @@ impl Nginx {
                 format!(
                     r#"
                     docker exec nbot_nginx \
-                    certbot certonly --webroot \
+                    certbot certonly --webroot -v \
                     -w /usr/share/nginx/html \
                     -d {domain} \
                     --email {email} \
