@@ -28,7 +28,13 @@ impl Run {
         for app in &project.apps {
             spinner.start(format!("{}: ", app.name));
 
-            app.run(&vec![&networks.0, &networks.1]);
+            if app.is_running() {
+                spinner.stop(format!("{}: already running", app.name));
+                continue;
+            } else {
+                app.run(&vec![&networks.0, &networks.1]);
+            }
+
             let mut up = false;
 
             if app.domains.is_some() {
@@ -64,7 +70,7 @@ impl Run {
                 spinner.stop(format!("{}: failed", app.name));
                 continue;
             } else {
-                spinner.stop(format!("{}: OK", app.name));
+                spinner.stop(format!("{}: started", app.name));
             }
 
             Nginx::generate_certificates(app);

@@ -51,6 +51,7 @@ impl Spinner {
         if let Some(handle) = self.handle.take() {
             handle.join().unwrap();
         }
+
         print!("\r{:<width$}", " ", width = self.message_length);
         println!("\r{}", message);
         self.message_length = 0;

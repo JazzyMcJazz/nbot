@@ -53,11 +53,11 @@ impl Nginx {
         .unwrap();
         fs::write(default_conf, NGINX_DEFAULT_CONF).unwrap();
 
-        let Ok((_, img, _)) = run_script!("docker images | grep nbot/nginx") else {
-            return;
-        };
+        let exists = !run_script!("docker images | grep nbot/nginx")
+            .unwrap_or_default()
+            .1
+            .is_empty();
 
-        let exists = !img.is_empty();
         if !exists || build {
             if exists {
                 let Ok(_) = run_script!("docker rm -f nbot_nginx; docker rmi nbot/nginx") else {
@@ -140,7 +140,7 @@ impl Nginx {
     }
 
     pub fn is_running() -> bool {
-        let (_, output, _) = run_script!("docker ps -a | grep nbot/nginx").unwrap();
+        let (_, output, _) = run_script!("docker ps -q -f name=nbot_nginx").unwrap();
         !output.is_empty()
     }
 
