@@ -76,7 +76,7 @@ impl Dirs {
         confd
     }
 
-    fn nginx_html() -> String {
+    fn _nginx_html() -> String {
         let nginx = Self::nginx_volumes();
         let html = format!("{}/html", nginx);
         if fs::read_dir(&html).is_err() {

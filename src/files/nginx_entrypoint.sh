@@ -9,7 +9,7 @@ function inotifywait_listen() {
 
 echo "Certbot entrypoint is running."
 
-cp default.conf /etc/nginx/conf.d/default >> /dev/null 2>&1
+cp default.conf /etc/nginx/conf.d/default.conf >> /dev/null 2>&1
 
 crontab scheduler.txt
 crontab -l
