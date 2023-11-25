@@ -65,6 +65,9 @@ impl Run {
                 }
             }
 
+            Nginx::generate_certificates(app);
+            Nginx::add_conf(app);
+
             if !up {
                 app.stop();
                 spinner.stop(format!("{}: failed", app.name));
@@ -72,9 +75,6 @@ impl Run {
             } else {
                 spinner.stop(format!("{}: started", app.name));
             }
-
-            Nginx::generate_certificates(app);
-            Nginx::add_conf(app);
         }
 
         let mut app_state = APP_STATE.to_owned();
