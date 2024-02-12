@@ -77,7 +77,7 @@ impl AppStatus {
 
     fn get_app_status(app: &App) -> (String, String) {
         let (_, output, _) =
-            run_script!(format!("docker ps -q -f name={}", app.container_name)).unwrap();
+            run_script!(format!("docker ps -a -q -f name={}", app.container_name)).unwrap();
 
         let container_id = output.replace('\n', "");
 
@@ -87,8 +87,10 @@ impl AppStatus {
         ))
         .unwrap();
 
-        let status = output.replace('\n', "");
-
+        let mut status = output.replace('\n', "");
+        if status.is_empty() {
+            status = String::from("missing");
+        }
         (container_id, status)
     }
 }
