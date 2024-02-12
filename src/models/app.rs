@@ -42,13 +42,24 @@ impl App {
             args.push(volume);
         }
 
+        if self.privileged {
+            args.push("--privileged");
+        }
+
+        for network in networks {
+            let (connect, name) = match network {
+                Network::Internal(name) => (true, name),
+                Network::Nginx(name) => (self.domains.is_some(), name),
+            };
+            if connect {
+                args.push("--network");
+                args.push(name);
+            }
+        }
+
         for network in self.network_aliases.iter() {
             args.push("--network-alias");
             args.push(network);
-        }
-
-        if self.privileged {
-            args.push("--privileged");
         }
 
         args.push(self.image.as_str());
@@ -67,19 +78,19 @@ impl App {
             return;
         };
 
-        for network in networks {
-            let (connect, name) = match network {
-                Network::Internal(name) => (true, name),
-                Network::Nginx(name) => (self.domains.is_some(), name),
-            };
-            if connect {
-                run_script!(format!(
-                    "docker network connect {} {}",
-                    name, self.container_name
-                ))
-                .unwrap_or_default();
-            }
-        }
+        // for network in networks {
+        //     let (connect, name) = match network {
+        //         Network::Internal(name) => (true, name),
+        //         Network::Nginx(name) => (self.domains.is_some(), name),
+        //     };
+        //     if connect {
+        //         run_script!(format!(
+        //             "docker network connect {} {}",
+        //             name, self.container_name
+        //         ))
+        //         .unwrap_or_default();
+        //     }
+        // }
     }
 
     pub fn stop(&self) {
