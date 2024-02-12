@@ -32,6 +32,7 @@ impl Rm {
                 Nginx::remove_conf(app);
                 if app.is_running() {
                     app.stop();
+                    app.remove();
                 }
             }
 

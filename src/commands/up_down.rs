@@ -37,6 +37,7 @@ impl UpDown {
                 if app.is_running() {
                     spinner.start(format!("{}: ", app.name));
                     app.stop();
+                    app.remove();
                     spinner.stop(format!("{}: stopped", app.name));
                 }
             }

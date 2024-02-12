@@ -54,6 +54,7 @@ impl App {
         args.push(self.image.as_str());
 
         self.stop();
+        self.remove();
         let Ok(mut command) = Command::new("docker")
             .args(args)
             .stdout(Stdio::null())
@@ -83,6 +84,9 @@ impl App {
 
     pub fn stop(&self) {
         run_script!(format!("docker stop {}", self.container_name)).unwrap_or_default();
+    }
+
+    pub fn remove(&self) {
         run_script!(format!("docker rm {}", self.container_name)).unwrap_or_default();
     }
 
@@ -95,16 +99,16 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, new: App) {
-        self.name = new.name;
-        self.image = new.image;
-        self.container_name = new.container_name;
-        self.port = new.port;
-        self.env_vars = new.env_vars;
-        self.volumes = new.volumes;
-        self.depends_on = new.depends_on;
-        self.domains = new.domains;
-    }
+    // pub fn update(&mut self, new: App) {
+    //     self.name = new.name;
+    //     self.image = new.image;
+    //     self.container_name = new.container_name;
+    //     self.port = new.port;
+    //     self.env_vars = new.env_vars;
+    //     self.volumes = new.volumes;
+    //     self.depends_on = new.depends_on;
+    //     self.domains = new.domains;
+    // }
 
     pub fn from_cli(args: &ArgMatches, project: &String) -> Vec<Self> {
         let mut apps = Self::collect_flags::<String>(args, "app");

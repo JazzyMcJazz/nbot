@@ -39,12 +39,7 @@ impl Run {
         for app in &project.apps {
             spinner.start(format!("{}: ", app.name));
 
-            if app.is_running() {
-                spinner.stop(format!("{}: already running", app.name));
-                continue;
-            } else {
-                app.run(&vec![&networks.0, &networks.1]);
-            }
+            app.run(&vec![&networks.0, &networks.1]);
 
             let mut up = false;
             let mut reason = String::new();
