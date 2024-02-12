@@ -184,6 +184,9 @@ impl Nginx {
     }
 
     pub fn remove_conf(app: &App) {
+        if app.domains.is_none() {
+            return;
+        }
         let domains = app.domains.as_ref().unwrap();
         let confd = Dirs::nginx_confd();
         for domain in domains {

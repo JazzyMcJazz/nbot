@@ -72,4 +72,8 @@ impl AppState {
         let config = serde_json::to_string(&self).unwrap();
         fs::write(config_file, config).expect("Failed to write config file");
     }
+
+    pub fn exists(&self, project_name: &str) -> bool {
+        self.projects.iter().any(|p| p.name == project_name)
+    }
 }

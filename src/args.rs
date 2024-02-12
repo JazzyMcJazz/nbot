@@ -69,6 +69,14 @@ pub fn get_matches() -> ArgMatches {
                         .required(true)
                 )
                 .arg(
+                    Arg::new("force")
+                        .short('f')
+                        .long("force")
+                        .help("Force the recreation of an existing project. Hint: use in CI/CD pipeline. (optional, defaults to false)")
+                        .required(false)
+                        .action(ArgAction::SetTrue)
+                )
+                .arg(
                     Arg::new("app")
                         .short('a')
                         .long("app")

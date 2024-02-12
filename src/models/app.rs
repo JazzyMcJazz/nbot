@@ -54,7 +54,6 @@ impl App {
         args.push(self.image.as_str());
 
         self.stop();
-        dbg!(&args);
         let Ok(mut command) = Command::new("docker")
             .args(args)
             .stdout(Stdio::null())
@@ -211,7 +210,7 @@ impl App {
             }
 
             while let Some(privileged_flag) = privileged_list.pop() {
-                if privileged_flag.index != app.index {
+                if privileged_flag.index > app.index {
                     if privileged {
                         panic!("Error: App cannot have more than one privileged flag");
                     }

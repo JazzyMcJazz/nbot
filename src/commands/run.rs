@@ -1,4 +1,4 @@
-use std::thread::sleep;
+use std::{io::Write, process, thread::sleep};
 
 use crate::{
     models::Project,
@@ -12,7 +12,18 @@ use super::nginx::Nginx;
 pub struct Run;
 
 impl Run {
-    pub fn project(project: Project) {
+    pub fn project(project: Project, force: bool) {
+        let mut app_state = APP_STATE.to_owned();
+        if !force && app_state.exists(&project.name) {
+            let mut line = String::new();
+            print!("Project already exists. Override? (y/n): ");
+            std::io::stdout().flush().unwrap();
+            std::io::stdin().read_line(&mut line).unwrap();
+            if line.trim() != "y" {
+                process::exit(1);   
+            }
+        }
+
         if !Nginx::is_running() {
             Nginx::run(false, true);
         }
@@ -95,7 +106,7 @@ impl Run {
             }
         }
 
-        let mut app_state = APP_STATE.to_owned();
+        
         app_state.add_or_update_project(project);
     }
 }

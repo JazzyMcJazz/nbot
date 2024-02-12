@@ -27,7 +27,8 @@ pub fn process_matches(args: ArgMatches) {
         }
         Some(("run", args)) => {
             let project = Project::from_cli(args);
-            Run::project(project);
+            let force = args.get_flag("force");
+            Run::project(project, force);
         }
         Some(("rm", args)) => {
             Rm::projects(args);

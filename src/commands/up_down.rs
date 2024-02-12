@@ -17,7 +17,7 @@ impl UpDown {
         }
 
         for project in state.projects {
-            Run::project(project); // TODO: error handling
+            Run::project(project, false); // TODO: error handling
         }
     }
 
