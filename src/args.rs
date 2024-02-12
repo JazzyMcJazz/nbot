@@ -1,9 +1,10 @@
 use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
+use crate::utils::version::Version;
 
 pub fn get_matches() -> ArgMatches {
     Command::new("nbot")
         .about("An orchestration tool for managing docker containers behind an Nginx reverse proxy.")
-        .version("0.0.1")
+        .version(Version::get().as_str())
         .subcommand_required(true)
         .arg_required_else_help(true)
         .author("JazzyMcJazz")
