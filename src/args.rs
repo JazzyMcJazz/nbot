@@ -1,5 +1,5 @@
-use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 use crate::utils::version::Version;
+use clap::{value_parser, Arg, ArgAction, ArgMatches, Command};
 
 pub fn get_matches() -> ArgMatches {
     Command::new("nbot")

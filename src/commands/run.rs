@@ -20,7 +20,7 @@ impl Run {
             std::io::stdout().flush().unwrap();
             std::io::stdin().read_line(&mut line).unwrap();
             if line.trim() != "y" {
-                process::exit(1);   
+                process::exit(1);
             }
         }
 
@@ -76,9 +76,9 @@ impl Run {
             } else {
                 // check if container is up
                 for seconds in 1..3 {
-                    let (code, _, error) = run_script!(
-                        format!("docker ps -q -f name={}", app.container_name)
-                    ).unwrap_or_default();
+                    let (code, _, error) =
+                        run_script!(format!("docker ps -q -f name={}", app.container_name))
+                            .unwrap_or_default();
                     reason = error;
 
                     if code == 0 {
@@ -101,7 +101,6 @@ impl Run {
             }
         }
 
-        
         app_state.add_or_update_project(project);
     }
 }

@@ -49,10 +49,9 @@ impl AppState {
     }
 
     pub fn add_or_update_project(&mut self, project: Project) {
-        
         if let Some(existing_project) = self.projects.iter_mut().find(|p| p.name == project.name) {
             existing_project.apps = project.apps;
-            
+
             // for app in project.apps {
             //     if let Some(existing_app) = existing_project
             //         .apps
