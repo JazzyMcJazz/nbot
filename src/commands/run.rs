@@ -46,7 +46,12 @@ impl Run {
 
             if app.domains.is_some() {
                 // wait until container is up
-                for seconds in 1..3 {
+                for seconds in 1..4 {
+                    if seconds != 4 {
+                        sleep(std::time::Duration::from_secs(seconds));
+                    } else {
+                        break;
+                    }
                     let command = if let Some(port) = &app.port {
                         format!(
                             "docker exec nbot_nginx curl -Is http://{}:{}",
@@ -59,16 +64,16 @@ impl Run {
                         )
                     };
 
-                    let (code, _, error) = run_script!(command).unwrap_or_default();
-                    reason = error;
+                    let (code, output, error) = run_script!(command).unwrap_or_default();
+                    reason = if error.is_empty() {
+                        output
+                    } else {
+                        error
+                    };
 
                     if code == 0 {
                         up = true;
                         break;
-                    }
-
-                    if seconds != 3 {
-                        sleep(std::time::Duration::from_secs(seconds));
                     }
                 }
                 Nginx::generate_certificates(app);
