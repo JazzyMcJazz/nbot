@@ -46,12 +46,12 @@ impl Run {
 
             if app.domains.is_some() {
                 // wait until container is up
-                for seconds in 1..4 {
-                    if seconds != 4 {
-                        sleep(std::time::Duration::from_secs(seconds));
-                    } else {
-                        break;
-                    }
+                for seconds in 1..15 {
+                    // pinging a container immediately after starting it
+                    // has been known to cause it to crash. Therefore, we
+                    // wait at the start of the loop instead of the end.
+                    sleep(std::time::Duration::from_secs(seconds));
+                    
                     let command = if let Some(port) = &app.port {
                         format!(
                             "docker exec nbot_nginx curl -Is http://{}:{}",
@@ -98,8 +98,8 @@ impl Run {
             }
 
             if !up {
-                app.stop();
                 spinner.stop(format!("{}: failed. Reason: {}", app.name, reason.trim()));
+                println!("Note: If the service takes a long time to spin up, it may not in fact be failing. Run nbot status to check the status of the container.");
                 continue;
             } else {
                 spinner.stop(format!("{}: started", app.name));
