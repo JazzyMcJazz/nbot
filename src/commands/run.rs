@@ -36,6 +36,7 @@ impl Run {
             }
 
             let mut up = false;
+            let mut reason = String::new();
 
             if app.domains.is_some() {
                 // wait until container is up
@@ -52,7 +53,27 @@ impl Run {
                         )
                     };
 
-                    let (code, _, _) = run_script!(command).unwrap_or_default();
+                    let (code, _, error) = run_script!(command).unwrap_or_default();
+                    reason = error;
+
+                    if code == 0 {
+                        up = true;
+                        break;
+                    }
+
+                    if seconds != 3 {
+                        sleep(std::time::Duration::from_secs(seconds));
+                    }
+                }
+                Nginx::generate_certificates(app);
+                Nginx::add_conf(app);
+            } else {
+                // check if container is up
+                for seconds in 1..3 {
+                    let (code, _, error) = run_script!(
+                        format!("docker ps -q -f name={}", app.container_name)
+                    ).unwrap_or_default();
+                    reason = error;
 
                     if code == 0 {
                         up = true;
@@ -65,12 +86,9 @@ impl Run {
                 }
             }
 
-            Nginx::generate_certificates(app);
-            Nginx::add_conf(app);
-
             if !up {
                 app.stop();
-                spinner.stop(format!("{}: failed", app.name));
+                spinner.stop(format!("{}: failed. Reason: {}", app.name, reason.trim()));
                 continue;
             } else {
                 spinner.stop(format!("{}: started", app.name));

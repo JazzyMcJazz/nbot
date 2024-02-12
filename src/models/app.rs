@@ -18,6 +18,8 @@ pub struct App {
     pub domains: Option<Vec<String>>,
     pub email: Option<String>,
     pub openssl: Option<bool>,
+    privileged: bool,
+    network_aliases: Vec<String>,
 }
 
 impl App {
@@ -40,9 +42,19 @@ impl App {
             args.push(volume);
         }
 
+        for network in self.network_aliases.iter() {
+            args.push("--network-alias");
+            args.push(network);
+        }
+
+        if self.privileged {
+            args.push("--privileged");
+        }
+
         args.push(self.image.as_str());
 
         self.stop();
+        dbg!(&args);
         let Ok(mut command) = Command::new("docker")
             .args(args)
             .stdout(Stdio::null())
@@ -105,6 +117,8 @@ impl App {
         let mut domain_list = Self::collect_flags::<String>(args, "domain");
         let mut email_list = Self::collect_flags::<String>(args, "email");
         let mut openssl_list = Self::collect_flags::<bool>(args, "openssl");
+        let mut privileged_list = Self::collect_flags::<bool>(args, "privileged");
+        let mut network_aliases_list = Self::collect_flags::<String>(args, "network-alias");
 
         let mut app_list: Vec<App> = vec![];
         while let Some(app) = apps.pop() {
@@ -114,6 +128,8 @@ impl App {
             let mut volumes: Vec<String> = vec![];
             let mut depends_on: Vec<String> = vec![];
             let mut domains: Vec<String> = vec![];
+            let mut network_aliases: Vec<String> = vec![];
+            let mut privileged = false;
 
             while let Some(image_name) = image_list.pop() {
                 if image_name.index > app.index {
@@ -185,6 +201,27 @@ impl App {
                 Some(domains)
             };
 
+            while let Some(network_alias) = network_aliases_list.pop() {
+                if network_alias.index > app.index {
+                    network_aliases.push(network_alias.value);
+                } else {
+                    network_aliases_list.push(network_alias);
+                    break;
+                }
+            }
+
+            while let Some(privileged_flag) = privileged_list.pop() {
+                if privileged_flag.index != app.index {
+                    if privileged {
+                        panic!("Error: App cannot have more than one privileged flag");
+                    }
+                    privileged = privileged_flag.value;
+                } else {
+                    privileged_list.push(privileged_flag);
+                    break;
+                }
+            }
+
             let mut email: Option<String> = None;
             while let Some(email_address) = email_list.pop() {
                 if email_address.index > app.index {
@@ -226,6 +263,8 @@ impl App {
                 domains,
                 email,
                 openssl,
+                privileged,
+                network_aliases,
             });
         }
 

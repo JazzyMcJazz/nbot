@@ -145,6 +145,10 @@ impl Nginx {
     }
 
     pub fn add_conf(app: &App) {
+        if app.domains.is_none() {
+            return;
+        }
+
         let domains = app.domains.as_ref().unwrap();
         let mut files = Vec::<(String, String)>::new();
         for domain in domains {
@@ -191,6 +195,9 @@ impl Nginx {
     }
 
     pub fn generate_certificates(app: &App) {
+        if app.domains.is_none() {
+            return;
+        }
         let domains = app.domains.as_ref().unwrap();
 
         for domain in domains {
