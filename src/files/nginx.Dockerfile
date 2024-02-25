@@ -5,8 +5,8 @@ RUN apk add certbot certbot-nginx inotify-tools openssl
 
 RUN mkdir /etc/letsencrypt
 
-COPY nbotnginx_entrypoint.sh entrypoint.sh
-COPY nbotnginx_scheduler.txt scheduler.txt
-COPY nbotnginx_default.conf default.conf
+COPY entrypoint.sh entrypoint.sh
+COPY scheduler.txt scheduler.txt
+COPY default.conf default.conf
 
 ENTRYPOINT ["sh", "entrypoint.sh"]

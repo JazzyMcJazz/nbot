@@ -1,44 +1,34 @@
-use crate::{utils::spinner::Spinner, APP_STATE};
+use crate::APP_STATE;
 
 use super::{nginx::Nginx, run::Run};
 
 pub struct UpDown;
 
 impl UpDown {
-    pub fn up() {
-        let mut spinner = Spinner::new();
-
+    pub async fn up() {
         let state = APP_STATE.to_owned();
 
-        if !Nginx::is_running() {
-            spinner.start("Nginx: ".to_owned());
-            Nginx::run(false, true);
-            spinner.stop("Nginx: OK".to_owned());
+        if !Nginx::is_running().await {
+            Nginx::run(false).await;
         }
 
         for project in state.projects {
-            Run::project(project, true); // TODO: error handling
+            Run::project(project, true).await; // TODO: error handling
         }
     }
 
-    pub fn down() {
-        let mut spinner = Spinner::new();
-
+    pub async fn down() {
         let state = APP_STATE.to_owned();
 
-        if Nginx::is_running() {
-            spinner.start("Nginx: ".to_owned());
-            Nginx::stop(true, true);
-            spinner.stop("Nginx: stopped".to_owned());
+        if Nginx::is_running().await {
+            Nginx::stop(true).await;
         }
 
         for project in state.projects {
             for app in project.apps {
-                if app.is_running() {
-                    spinner.start(format!("{}: ", app.name));
-                    app.stop();
-                    app.remove();
-                    spinner.stop(format!("{}: stopped", app.name));
+                if app.is_running().await {
+                    app.stop().await;
+                    app.remove().await;
                 }
             }
         }

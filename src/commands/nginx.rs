@@ -1,147 +1,105 @@
 use clap::ArgMatches;
 use run_script::run_script;
-use std::{
-    fs,
-    process::{Command, Stdio},
-};
+use std::fs;
 
 use crate::{
-    files::*,
-    models::App,
-    utils::{dirs::Dirs, networks::Network, spinner::Spinner},
+    docker, files::*, models::App, utils::{dirs::Dirs, networks::Network}
 };
 
 pub struct Nginx;
 
 impl Nginx {
-    pub fn process_matches(args: &ArgMatches) {
+    pub async fn process_matches(args: &ArgMatches) {
         match args.subcommand() {
             Some(("run", args)) => {
                 let build = args.get_flag("build");
-                Nginx::run(build, false);
+                Nginx::run(build).await;
                 Dirs::rm_temp();
             }
             Some(("stop", args)) => {
                 let remove = args.get_flag("remove");
-                Nginx::stop(remove, false);
+                Nginx::stop(remove).await;
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn run(build: bool, silent: bool) {
-        let (_, output, _) = run_script!("docker ps -a | grep nbot_nginx").unwrap();
-        if !output.is_empty() {
-            run_script!("docker start nbot_nginx").unwrap();
+    pub async fn run(build: bool) {
+        let started = docker::containers::start_nginx().await;
+        if started {
             return;
         }
 
-        // prepare files
-        let temp_dir = Dirs::temp();
-        let dockerfile = format!("{}/nbotnginx.Dockerfile", temp_dir);
-        let entrypoint = format!("{}/nbotnginx_entrypoint.sh", temp_dir);
-        let scheduler = format!("{}/nbotnginx_scheduler.txt", temp_dir);
-        let default_conf = format!("{}/nbotnginx_default.conf", temp_dir);
+        let image = docker::images::find_by_name("nbot/nginx", Some("latest")).await;
+        if image.is_none() || build {
+            if let Some(image) = image {
+                docker::images::remove(image.id.as_str()).await;
+            }
+            
+            docker::images::build_nginx().await;
+        }
 
-        // create files
-        fs::write(dockerfile, NGINX_DOCKERFILE).unwrap();
-        fs::write(entrypoint, NGINX_ENTRYPOINT).unwrap();
-        fs::write(
-            scheduler,
-            "0 12 * * * /usr/bin/certbot renew --quiet >> /var/log/cron.log 2>&1",
-        )
-        .unwrap();
-        fs::write(default_conf, NGINX_DEFAULT_CONF).unwrap();
+        docker::containers::run_nginx().await;
+    }
 
-        let exists = !run_script!("docker images | grep nbot/nginx")
-            .unwrap_or_default()
-            .1
-            .is_empty();
+    pub async fn stop(remove: bool) {
+        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let Some(container) = container else {
+            return;
+        };
+        let Some(id) = container.id else {
+            return;
+        };
+        
+        docker::containers::stop(id.as_str()).await;
+        if remove {
+            docker::containers::remove(id.as_str()).await;
+        }
+    }
 
-        if !exists || build {
-            if exists {
-                let Ok(_) = run_script!("docker rm -f nbot_nginx; docker rmi nbot/nginx") else {
+    pub async fn connect_to_network(network: &Network) {
+        match network {
+            Network::Internal(_) => {}
+            Network::Nginx(_) => {
+                let container = docker::containers::find_by_name("nbot_nginx").await;
+                let Some(container) = container else {
                     return;
                 };
+
+                let container_id = container.id.unwrap();
+                let is_connected = docker::network::is_connected(container_id.as_str(), network).await;
+                if !is_connected {
+                    docker::network::connect(container_id.as_str(), network).await;
+                }
             }
-            let dockerfile = format!("{}/nbotnginx.Dockerfile", temp_dir);
-            let Ok(mut command) = Command::new("docker")
-                .args([
-                    "build",
-                    "-t",
-                    "nbot/nginx",
-                    "-f",
-                    dockerfile.as_str(),
-                    temp_dir.as_str(),
-                ])
-                .stdout(if silent {
-                    Stdio::null()
-                } else {
-                    Stdio::piped()
-                })
-                .spawn()
-            else {
-                return;
-            };
-
-            let Ok(_) = command.wait() else {
-                return;
-            };
-        }
-
-        let volume_dir = Dirs::nginx_volumes();
-
-        Dirs::init_volumes();
-        let docker_run = NGINX_RUN.replace("{{volume_dir}}", &volume_dir);
-
-        let Ok((code, _, error)) = run_script!(docker_run) else {
-            return;
-        };
-
-        if code != 0 {
-            eprintln!("{error}");
         };
     }
 
-    pub fn stop(remove: bool, silent: bool) {
-        let mut spinner = Spinner::new();
-        if !silent {
-            spinner.start("Stopping Nginx ".to_owned());
-        }
-
-        run_script!("docker stop nbot_nginx").unwrap();
-        if remove {
-            run_script!("docker rm nbot_nginx").unwrap();
-        }
-
-        if !silent {
-            spinner.stop("done".to_owned());
-        }
-    }
-
-    pub fn connect_to_network(network: &Network) {
+    pub async fn disconnect_from_network(network: &Network) {
         match network {
             Network::Internal(_) => {}
-            Network::Nginx(name) => {
-                run_script!(format!("docker network connect {name} nbot_nginx"))
-                    .unwrap_or_default();
+            Network::Nginx(_) => {
+                let container = docker::containers::find_by_name("nbot_nginx").await;
+                let Some(container) = container else {
+                    return;
+                };
+
+                docker::network::disconnect(container, network).await;
             }
         };
     }
 
-    pub fn disconnect_from_network(network: &Network) {
-        match network {
-            Network::Internal(_) => {}
-            Network::Nginx(name) => {
-                run_script!(format!("docker network disconnect {name} nbot_nginx"))
-                    .unwrap_or_default();
-            }
+    pub async fn is_running() -> bool {
+        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let Some(container) = container else {
+            return false;
         };
-    }
 
-    pub fn is_running() -> bool {
-        let (_, output, _) = run_script!("docker ps -q -f name=nbot_nginx").unwrap();
-        !output.is_empty()
+        if let Some(state) = &container.state {
+            return state == "running";
+        }
+
+        false
     }
 
     pub fn add_conf(app: &App) {
@@ -197,11 +155,18 @@ impl Nginx {
         }
     }
 
-    pub fn generate_certificates(app: &App) {
+    pub async fn generate_certificates(app: &App) {
         if app.domains.is_none() {
             return;
         }
         let domains = app.domains.as_ref().unwrap();
+        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let Some(container) = container else {
+            return;
+        };
+        let Some(container_id) = container.id else {
+            return;
+        };
 
         for domain in domains {
             let certs_dir = Dirs::nginx_certs();
@@ -214,32 +179,20 @@ impl Nginx {
 
             // check if certificate exists
             let command = if use_openssl {
-                format!(
-                    r#"
-                    docker exec nbot_nginx \
-                    openssl x509 -checkend 86400 -noout \
-                    -in /etc/letsencrypt/live/{domain}/fullchain.pem
-                "#
-                )
+                format!("openssl x509 -checkend 86400 -noout -in /etc/letsencrypt/live/{domain}/fullchain.pem")
             } else {
-                format!(
-                    r#"
-                    docker exec nbot_nginx \
-                    certbot certificates | grep {domain}
-                "#
-                )
+                format!("certbot certificates | grep {domain}")
             };
 
-            let (code, _, _) = run_script!(command).unwrap_or_default();
+            let result = docker::exec::exec(container_id.as_str(), &command).await;
 
-            if code == 0 {
-                continue;
-            }
+            // if let Ok(result) = result {
+            //     dbg!(result); // TODO: check if certificate is valid
+            // }
 
             let command = if use_openssl {
                 format!(
                     r#"
-                    docker exec nbot_nginx \
                     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
                     -keyout /etc/letsencrypt/live/{domain}/privkey.pem \
                     -out /etc/letsencrypt/live/{domain}/fullchain.pem \
@@ -249,7 +202,6 @@ impl Nginx {
             } else {
                 format!(
                     r#"
-                    docker exec nbot_nginx \
                     certbot certonly --webroot -v \
                     -w /usr/share/nginx/html \
                     -d {domain} \
@@ -259,13 +211,11 @@ impl Nginx {
                 "#
                 )
             };
-
-            let Ok((code, _, error)) = run_script!(command) else {
-                continue;
-            };
-            if code != 0 {
-                eprintln!("{error}");
-            };
+            
+            let result = docker::exec::exec(container_id.as_str(), &command).await;
+            // if let Ok(result) = result {
+            //     dbg!(result);
+            // }
         }
     }
 }

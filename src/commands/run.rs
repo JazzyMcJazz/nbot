@@ -1,18 +1,16 @@
 use std::{io::Write, process, thread::sleep};
 
 use crate::{
-    models::Project,
-    utils::{networks::Network, spinner::Spinner},
-    APP_STATE,
+    docker, models::Project, utils::networks::Network, APP_STATE
 };
-use run_script::run_script;
+// use run_script::run_script;
 
 use super::nginx::Nginx;
 
 pub struct Run;
 
 impl Run {
-    pub fn project(project: Project, force: bool) {
+    pub async fn project(project: Project, force: bool) {
         let mut app_state = APP_STATE.to_owned();
         if !force && app_state.exists(&project.name) {
             let mut line = String::new();
@@ -24,25 +22,26 @@ impl Run {
             }
         }
 
-        if !Nginx::is_running() {
-            Nginx::run(false, true);
+        if !Nginx::is_running().await {
+            Nginx::run(false).await;
         }
 
         let networks = (
             Network::internal_from_project(&project.name).create(),
             Network::nginx_from_project(&project.name).create(),
         );
-
-        Nginx::connect_to_network(&networks.1);
-
-        let mut spinner = Spinner::new();
+        
+        Nginx::connect_to_network(&networks.1).await;
+        
         for app in &project.apps {
-            spinner.start(format!("{}: ", app.name));
-
-            app.run(&vec![&networks.0, &networks.1]);
+            let started = app.run(&vec![&networks.0, &networks.1]).await;
+            if !started {
+                println!("{}: failed", app.name);
+                continue;
+            }
 
             let mut up = false;
-            let mut reason = String::new();
+            // let mut reason = String::new();
 
             if app.domains.is_some() {
                 // wait until container is up
@@ -53,56 +52,58 @@ impl Run {
                     sleep(std::time::Duration::from_secs(seconds));
                     
                     let command = if let Some(port) = &app.port {
-                        format!(
-                            "docker exec nbot_nginx curl -Is http://{}:{}",
-                            &app.container_name, port
-                        )
+                        format!("curl -I http://{}:{}", &app.container_name, port)
                     } else {
-                        format!(
-                            "docker exec nbot_nginx curl -Is http://{}",
-                            &app.container_name
-                        )
+                        format!("curl -I http://{}", &app.container_name)
                     };
 
-                    let (code, output, error) = run_script!(command).unwrap_or_default();
-                    reason = if error.is_empty() {
-                        output
-                    } else {
-                        error
-                    };
+                    let result = docker::exec::exec("nbot_nginx", &command).await;
 
-                    if code == 0 {
-                        up = true;
-                        break;
-                    }
+                    // TODO: check result
+                    
+                    // reason = if error.is_empty() {
+                    //     output
+                    // } else {
+                    //     error
+                    // };
+
+                    // if code == 0 {
+                    //     up = true;
+                    //     break;
+                    // }
                 }
-                Nginx::generate_certificates(app);
+                Nginx::generate_certificates(app).await;
                 Nginx::add_conf(app);
             } else {
                 // check if container is up
-                for seconds in 1..3 {
-                    let (code, _, error) =
-                        run_script!(format!("docker ps -q -f name={}", app.container_name))
-                            .unwrap_or_default();
-                    reason = error;
+                for seconds in 1..15 {
+                    sleep(std::time::Duration::from_secs(seconds));
 
-                    if code == 0 {
-                        up = true;
-                        break;
+                    let container = docker::containers::find_by_name(&app.container_name).await;
+                    if let Some(container) = container {
+                        if let Some(state) = &container.state {
+                            if state == "running" {
+                                up = true;
+                                break;
+                            }
+                        }
                     }
+                    
+                    // reason = error;
 
-                    if seconds != 3 {
-                        sleep(std::time::Duration::from_secs(seconds));
-                    }
+                    // if code == 0 {
+                    //     up = true;
+                    //     break;
+                    // }
                 }
             }
 
             if !up {
-                spinner.stop(format!("{}: failed. Reason: {}", app.name, reason.trim()));
+                println!("{}: failed. Reason: {}", app.name, "TODO: reason");
                 println!("Note: If the service takes a long time to spin up, it may not in fact be failing. Run nbot status to check the status of the container.");
                 continue;
             } else {
-                spinner.stop(format!("{}: started", app.name));
+                println!("{}: started", app.name);
             }
         }
 

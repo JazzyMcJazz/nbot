@@ -11,8 +11,12 @@ echo "Certbot entrypoint is running."
 
 cp default.conf /etc/nginx/conf.d/default.conf >> /dev/null 2>&1
 
+# Create a crontab file
 crontab scheduler.txt
 crontab -l
+
+# Start the cron daemon
+crond
 
 # Monitor the conf.d directory for changes and reload Nginx when a change is detected
 inotifywait_listen &

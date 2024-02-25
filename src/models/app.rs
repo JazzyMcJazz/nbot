@@ -1,10 +1,7 @@
-use std::process::{Command, Stdio};
-
 use clap::ArgMatches;
-use run_script::run_script;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::networks::Network;
+use crate::{docker, utils::networks::Network};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct App {
@@ -18,96 +15,67 @@ pub struct App {
     pub domains: Option<Vec<String>>,
     pub email: Option<String>,
     pub openssl: Option<bool>,
-    privileged: bool,
-    network_aliases: Vec<String>,
+    pub privileged: bool,
+    pub network_aliases: Vec<String>,
 }
 
 impl App {
-    pub fn run(&self, networks: &Vec<&Network>) {
-        let mut args = vec![
-            "run",
-            "-d",
-            "--init",
-            "--name",
-            self.container_name.as_str(),
-        ];
-
-        for env_var in &self.env_vars {
-            args.push("-e");
-            args.push(env_var);
+    pub async fn run(&self, networks: &Vec<&Network>) -> bool {
+        if self.is_running().await {
+            return true;
+        } else {
+            self.stop().await;
+            self.remove().await;
         }
 
-        for volume in &self.volumes {
-            args.push("-v");
-            args.push(volume);
-        }
-
-        if self.privileged {
-            args.push("--privileged");
-        }
+        let result = docker::containers::create_from_app(self).await;
+        let container = match result {
+            Ok(container) => container,
+            Err(e) => {
+                eprintln!("Error creating container: {}", e);
+                return false;
+            }
+        };
 
         for network in networks {
-            let (connect, name) = match network {
+            let (connect, _) = match network {
                 Network::Internal(name) => (true, name),
                 Network::Nginx(name) => (self.domains.is_some(), name),
             };
+
             if connect {
-                args.push("--network");
-                args.push(name);
+                let connected = docker::network::is_connected(container.id.as_str(), network).await;
+                if !connected {
+                    docker::network::connect(container.id.as_str(), network).await;
+                }
             }
         }
 
-        for network in self.network_aliases.iter() {
-            args.push("--network-alias");
-            args.push(network);
+        let started = docker::containers::start(container.id.as_str()).await;
+        if !started {
+            eprintln!("Error starting container");
+            return false;
         }
 
-        args.push(self.image.as_str());
-
-        self.stop();
-        self.remove();
-        let Ok(mut command) = Command::new("docker")
-            .args(args)
-            .stdout(Stdio::null())
-            .spawn()
-        else {
-            return;
-        };
-
-        let Ok(_) = command.wait() else {
-            return;
-        };
-
-        // for network in networks {
-        //     let (connect, name) = match network {
-        //         Network::Internal(name) => (true, name),
-        //         Network::Nginx(name) => (self.domains.is_some(), name),
-        //     };
-        //     if connect {
-        //         run_script!(format!(
-        //             "docker network connect {} {}",
-        //             name, self.container_name
-        //         ))
-        //         .unwrap_or_default();
-        //     }
-        // }
+        true
     }
 
-    pub fn stop(&self) {
-        run_script!(format!("docker stop {}", self.container_name)).unwrap_or_default();
+    pub async fn stop(&self) {
+        docker::containers::stop(self.container_name.as_str()).await;
     }
 
-    pub fn remove(&self) {
-        run_script!(format!("docker rm {}", self.container_name)).unwrap_or_default();
+    pub async fn remove(&self) {
+        docker::containers::remove(self.container_name.as_str()).await;
     }
 
-    pub fn is_running(&self) -> bool {
-        let output = run_script!(format!("docker ps -q -f name={}", self.container_name));
-        if let Ok((_, output, _)) = output {
-            !output.is_empty()
-        } else {
-            false
+    pub async fn is_running(&self) -> bool {
+        let container = docker::containers::find_by_name(self.container_name.as_str()).await;
+        if let Some(container) = container {
+            if let Some(state) = container.state {
+                return state == "running";
+            }
         }
+        false
     }
 
     // pub fn update(&mut self, new: App) {

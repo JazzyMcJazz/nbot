@@ -20,7 +20,7 @@ impl Network {
             Network::Internal(name) => name,
             Network::Nginx(name) => name,
         };
-
+        
         let Ok((_, output, _)) = run_script!(format!("docker network ls | grep {}", network_name))
         else {
             return self;

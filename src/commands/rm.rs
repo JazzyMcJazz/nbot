@@ -7,7 +7,7 @@ use super::nginx::Nginx;
 pub struct Rm;
 
 impl Rm {
-    pub fn projects(args: &ArgMatches) {
+    pub async fn projects(args: &ArgMatches) {
         let mut state = APP_STATE.clone();
 
         let projects: Vec<String> = args
@@ -30,15 +30,15 @@ impl Rm {
         for project in projects_to_remove {
             for app in &project.apps {
                 Nginx::remove_conf(app);
-                if app.is_running() {
-                    app.stop();
-                    app.remove();
+                if app.is_running().await {
+                    app.stop().await;
+                    app.remove().await;
                 }
             }
 
             let project_net = Network::internal_from_project(&project.name);
             let nginx_net = Network::nginx_from_project(&project.name);
-            Nginx::disconnect_from_network(&nginx_net);
+            Nginx::disconnect_from_network(&nginx_net).await;
             project_net.remove();
             nginx_net.remove();
         }
