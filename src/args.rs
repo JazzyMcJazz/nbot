@@ -48,17 +48,6 @@ pub fn get_matches() -> ArgMatches {
                 )
         )
         .subcommand(
-            Command::new("rm")
-                .about("Removes a project")
-                .arg(
-                    Arg::new("project")
-                        .value_parser(value_parser!(String))
-                        .action(ArgAction::Append)
-                        .help("Name(s) of the project to remove (required)")
-                        .required(true)
-                )
-        )
-        .subcommand(
             Command::new("run")
                 .about("Creates or updates a project.\nRun \"nbot run --help\" for more information.")
                 .arg(
@@ -163,6 +152,37 @@ pub fn get_matches() -> ArgMatches {
                         .help("Network aliases to add to the app (optional, multiple allowed per app)")
                         .required(false)
                         .action(ArgAction::Append)
+                )
+        )
+        .subcommand(
+            Command::new("start")
+                .about("Starts containers an existing project")
+                .arg(
+                    Arg::new("project")
+                        .value_parser(value_parser!(String))
+                        .help("Name of the project to start (required)")
+                        .required(true)
+                )
+        )
+        .subcommand(
+            Command::new("stop")
+                .about("Stops containers in an existing project")
+                .arg(
+                    Arg::new("project")
+                        .value_parser(value_parser!(String))
+                        .help("Name of the project to stop (required)")
+                        .required(true)
+                )
+        )
+        .subcommand(
+            Command::new("rm")
+                .about("Removes a project")
+                .arg(
+                    Arg::new("project")
+                        .value_parser(value_parser!(String))
+                        .action(ArgAction::Append)
+                        .help("Name(s) of the project to remove (required)")
+                        .required(true)
                 )
         )
         .subcommand(

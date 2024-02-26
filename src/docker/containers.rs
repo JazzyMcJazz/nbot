@@ -104,24 +104,14 @@ pub async fn start(container_id: &str) -> bool {
 }
 
 pub async fn stop(container_id: &str) {
-    match DOCKER.stop_container(container_id, None).await {
-        Ok(_) => {
-            println!("{container_id}");
-        }
-        Err(e) => {
-            eprintln!("Error stopping container: {}", e);
-        }
+    if DOCKER.stop_container(container_id, None).await.is_ok() {
+        println!("{container_id}");
     }
 }
 
 pub async fn remove(container_id: &str) {
-    match DOCKER.remove_container(container_id, None).await {
-        Ok(_) => {
-            println!("{container_id}");
-        }
-        Err(e) => {
-            eprintln!("Error removing container: {}", e);
-        }
+    if DOCKER.remove_container(container_id, None).await.is_ok() {
+        println!("{container_id}");
     }
 }
 

@@ -87,11 +87,9 @@ impl Run {
             }
 
             if !up {
-                println!("{}: failed. Reason: {}", app.name, reason);
+                eprintln!("{}: failed. Reason: {}", app.name, reason);
                 println!("Note: If the service takes a long time to spin up, it may not in fact be failing. Run nbot status to check the status of the container.");
                 continue;
-            } else {
-                println!("{}: started", app.name);
             }
         }
 

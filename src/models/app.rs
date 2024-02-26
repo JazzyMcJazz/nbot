@@ -21,12 +21,12 @@ pub struct App {
 
 impl App {
     pub async fn run(&self, networks: &Vec<&Network>) -> bool {
-        if self.is_running().await {
+        if self.is_using_latest_image().await {
             return true;
-        } else {
-            self.stop().await;
-            self.remove().await;
         }
+
+        self.stop().await;
+        self.remove().await;
 
         let result = docker::containers::create_from_app(self).await;
         let container = match result {
@@ -60,6 +60,36 @@ impl App {
         true
     }
 
+    pub async fn start(&self) -> bool {
+        let container = docker::containers::find_by_name(self.container_name.as_str()).await;
+        if let Some(container) = container {
+            if let Some(state) = container.state {
+                if state == "running" {
+                    return true;
+                }
+            }
+            let started = docker::containers::start(self.container_name.as_str()).await;
+            if !started {
+                eprintln!("Error starting container");
+                return false;
+            }
+        } else {
+            let container = docker::containers::create_from_app(self).await;
+            let Ok(_) = container else {
+                eprintln!("Error creating container");
+                return false;
+            };
+
+            let started = docker::containers::start(self.container_name.as_str()).await;
+            if !started {
+                eprintln!("Error starting container");
+                return false;
+            }
+        };
+
+        true
+    }
+
     pub async fn stop(&self) {
         docker::containers::stop(self.container_name.as_str()).await;
     }
@@ -78,16 +108,23 @@ impl App {
         false
     }
 
-    // pub fn update(&mut self, new: App) {
-    //     self.name = new.name;
-    //     self.image = new.image;
-    //     self.container_name = new.container_name;
-    //     self.port = new.port;
-    //     self.env_vars = new.env_vars;
-    //     self.volumes = new.volumes;
-    //     self.depends_on = new.depends_on;
-    //     self.domains = new.domains;
-    // }
+    async fn is_using_latest_image(&self) -> bool {
+        let container = docker::containers::find_by_name(self.container_name.as_str()).await;
+        let Some(container) = container else {
+            return false;
+        };
+
+        let Some(image_id) = container.image_id else {
+            return false;
+        };
+
+        let image = docker::images::find_by_name(&self.image, None).await;
+
+        if let Some(image) = image {
+            return image.id == image_id;
+        }
+        false
+    }
 
     pub fn from_cli(args: &ArgMatches, project: &String) -> Vec<Self> {
         let mut apps = Self::collect_flags::<String>(args, "app");

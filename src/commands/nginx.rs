@@ -7,6 +7,7 @@ use crate::{
     files::*,
     models::App,
     utils::{dirs::Dirs, networks::Network},
+    APP_STATE,
 };
 
 pub struct Nginx;
@@ -43,6 +44,18 @@ impl Nginx {
         }
 
         docker::containers::run_nginx().await;
+
+        // find networks and connect to them
+        let projects = APP_STATE.to_owned().projects;
+        'project_loop: for project in projects {
+            for app in project.apps {
+                if app.domains.is_some() {
+                    let network = Network::nginx_from_project(&project.name);
+                    Nginx::connect_to_network(&network).await;
+                    continue 'project_loop;
+                }
+            }
+        }
     }
 
     pub async fn stop(remove: bool) {
