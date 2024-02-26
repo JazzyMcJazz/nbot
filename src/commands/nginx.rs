@@ -3,7 +3,10 @@ use run_script::run_script;
 use std::fs;
 
 use crate::{
-    docker, files::*, models::App, utils::{dirs::Dirs, networks::Network}
+    docker,
+    files::*,
+    models::App,
+    utils::{dirs::Dirs, networks::Network},
 };
 
 pub struct Nginx;
@@ -35,7 +38,7 @@ impl Nginx {
             if let Some(image) = image {
                 docker::images::remove(image.id.as_str()).await;
             }
-            
+
             docker::images::build_nginx().await;
         }
 
@@ -50,7 +53,7 @@ impl Nginx {
         let Some(id) = container.id else {
             return;
         };
-        
+
         docker::containers::stop(id.as_str()).await;
         if remove {
             docker::containers::remove(id.as_str()).await;
@@ -67,7 +70,8 @@ impl Nginx {
                 };
 
                 let container_id = container.id.unwrap();
-                let is_connected = docker::network::is_connected(container_id.as_str(), network).await;
+                let is_connected =
+                    docker::network::is_connected(container_id.as_str(), network).await;
                 if !is_connected {
                     docker::network::connect(container_id.as_str(), network).await;
                 }
@@ -178,44 +182,73 @@ impl Nginx {
             let use_openssl = app.openssl.unwrap_or(false);
 
             // check if certificate exists
+            let file_path = format!("/etc/letsencrypt/live/{}/fullchain.pem", domain);
             let command = if use_openssl {
-                format!("openssl x509 -checkend 86400 -noout -in /etc/letsencrypt/live/{domain}/fullchain.pem")
+                vec![
+                    "openssl",
+                    "x509",
+                    "-checkend",
+                    "86400",
+                    "-noout",
+                    "-in",
+                    file_path.as_str(),
+                ]
             } else {
-                format!("certbot certificates | grep {domain}")
+                vec!["certbot", "certificates", "|", "grep", domain]
             };
 
-            let result = docker::exec::exec(container_id.as_str(), &command).await;
+            // if certificate exists, continue
+            let (output, code, ..) = docker::exec::exec(container_id.as_str(), &command).await;
+            if use_openssl && code == 0 {
+                continue;
+            }
 
-            // if let Ok(result) = result {
-            //     dbg!(result); // TODO: check if certificate is valid
-            // }
+            if !use_openssl && !output.is_empty() {
+                continue;
+            }
 
+            let file_path = format!("/etc/letsencrypt/live/{domain}/privkey.pem");
+            let subject = format!("/C=''/ST=''/L=''/O=''/OU=''/CN={domain}");
+            let output = format!("/etc/letsencrypt/live/{domain}/fullchain.pem");
             let command = if use_openssl {
-                format!(
-                    r#"
-                    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                    -keyout /etc/letsencrypt/live/{domain}/privkey.pem \
-                    -out /etc/letsencrypt/live/{domain}/fullchain.pem \
-                    -subj "/C=""/ST=""/L=""/O=""/OU=""/CN={domain}"
-                "#
-                )
+                vec![
+                    "openssl",
+                    "req",
+                    "-x509",
+                    "-nodes",
+                    "-days",
+                    "365",
+                    "-newkey",
+                    "rsa:2048",
+                    "-keyout",
+                    file_path.as_str(),
+                    "-out",
+                    output.as_str(),
+                    "-subj",
+                    subject.as_str(),
+                ]
             } else {
-                format!(
-                    r#"
-                    certbot certonly --webroot -v \
-                    -w /usr/share/nginx/html \
-                    -d {domain} \
-                    --email {email} \
-                    --agree-tos \
-                    --non-interactive
-                "#
-                )
+                vec![
+                    "certbot",
+                    "certonly",
+                    "--webroot",
+                    "-v",
+                    "-w",
+                    "/usr/share/nginx/html",
+                    "-d",
+                    domain,
+                    "--email",
+                    email,
+                    "--agree-tos",
+                    "--non-interactive",
+                ]
             };
-            
-            let result = docker::exec::exec(container_id.as_str(), &command).await;
-            // if let Ok(result) = result {
-            //     dbg!(result);
-            // }
+
+            let (_, code, error) = docker::exec::exec(container_id.as_str(), &command).await;
+            if code != 0 {
+                eprintln!("Error generating certificate for {}", domain);
+                eprintln!("{}", error);
+            }
         }
     }
 }

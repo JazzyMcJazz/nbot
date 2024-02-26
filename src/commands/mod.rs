@@ -34,7 +34,7 @@ pub async fn process_matches(args: ArgMatches) {
             Rm::projects(args).await;
         }
         Some(("status", _)) => {
-            Status::new().display();
+            Status::new().await.display();
         }
         _ => unreachable!(),
     }

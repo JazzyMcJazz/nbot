@@ -1,8 +1,7 @@
-use run_script::run_script;
 use std::vec;
 use tabled::{Table, Tabled};
 
-use crate::{models::App, APP_STATE};
+use crate::{docker, models::App, APP_STATE};
 
 #[derive(Tabled)]
 struct AppStatus {
@@ -20,10 +19,11 @@ struct AppStatus {
 }
 
 impl AppStatus {
-    pub fn from_apps(apps: Vec<App>, project: &String) -> Vec<Self> {
+    pub async fn from_apps(apps: Vec<App>, project: &String) -> Vec<Self> {
         let mut app_statuses = vec![];
         for app in apps {
-            let (container_id, status) = Self::get_app_status(&app);
+            let (container_id, status) = Self::get_app_status(&app).await;
+
             let ports = match app.port {
                 Some(port) => port,
                 None => String::new(),
@@ -75,22 +75,18 @@ impl AppStatus {
         app_statuses
     }
 
-    fn get_app_status(app: &App) -> (String, String) {
-        let (_, output, _) =
-            run_script!(format!("docker ps -a -q -f name={}", app.container_name)).unwrap();
+    async fn get_app_status(app: &App) -> (String, String) {
+        let container = docker::containers::find_by_name(&app.container_name).await;
+        let Some(container) = container else {
+            return (String::new(), "container not found".to_owned());
+        };
 
-        let container_id = output.replace('\n', "");
+        let mut container_id = container.id.unwrap();
+        let status = container.state.unwrap();
 
-        let (_, output, _) = run_script!(format!(
-            "docker inspect --format='{{{{.State.Status}}}}' {}",
-            container_id
-        ))
-        .unwrap();
+        container_id.truncate(12);
+        container_id += "...";
 
-        let mut status = output.replace('\n', "");
-        if status.is_empty() {
-            status = String::from("missing");
-        }
         (container_id, status)
     }
 }
@@ -100,11 +96,11 @@ pub struct Status {
 }
 
 impl Status {
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let state = APP_STATE.clone();
         let mut apps = vec![];
         for project in state.projects {
-            apps.append(&mut AppStatus::from_apps(project.apps, &project.name));
+            apps.append(&mut AppStatus::from_apps(project.apps, &project.name).await);
         }
 
         Status { apps }

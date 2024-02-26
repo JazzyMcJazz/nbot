@@ -1,4 +1,11 @@
-use bollard::{network::{ConnectNetworkOptions, DisconnectNetworkOptions}, secret::ContainerSummary};
+use std::collections::HashMap;
+
+use bollard::{
+    network::{
+        ConnectNetworkOptions, CreateNetworkOptions, DisconnectNetworkOptions, ListNetworksOptions,
+    },
+    secret::ContainerSummary,
+};
 
 use crate::{utils::networks::Network, DOCKER};
 
@@ -21,6 +28,53 @@ pub async fn is_connected(container_id: &str, network: &Network) -> bool {
     }
 }
 
+pub async fn exists(name: &str) -> bool {
+    let filters = HashMap::from([("name", vec![name])]);
+    let options = Some(ListNetworksOptions { filters });
+    let networks = DOCKER.list_networks(options).await;
+    match networks {
+        Ok(networks) => {
+            for network in networks {
+                if network.name == Some(name.to_owned()) {
+                    return true;
+                }
+            }
+            false
+        }
+        Err(e) => {
+            eprintln!("Error listing networks: {}", e);
+            false
+        }
+    }
+}
+
+pub async fn create(name: &str) -> bool {
+    let options = CreateNetworkOptions {
+        name,
+        ..Default::default()
+    };
+
+    let network = DOCKER.create_network(options).await;
+    match network {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("Error creating network: {}", e);
+            false
+        }
+    }
+}
+
+pub async fn remove(name: &str) -> bool {
+    let removed = DOCKER.remove_network(name).await;
+    match removed {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("Error removing network: {}", e);
+            false
+        }
+    }
+}
+
 pub async fn connect(container_id: &str, network: &Network) -> bool {
     let network_name = match network {
         Network::Internal(name) => name,
@@ -31,7 +85,7 @@ pub async fn connect(container_id: &str, network: &Network) -> bool {
         container: container_id,
         ..Default::default()
     };
-    
+
     let connected = DOCKER.connect_network(network_name, config).await;
     match connected {
         Ok(_) => true,

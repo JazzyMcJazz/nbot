@@ -1,4 +1,4 @@
-use run_script::run_script;
+use crate::docker;
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum Network {
@@ -15,33 +15,28 @@ impl Network {
         Network::Nginx(format!("nbot_nginx_{}_net", project_name))
     }
 
-    pub fn create(self) -> Self {
+    pub async fn create(self) -> Self {
         let network_name = match &self {
             Network::Internal(name) => name,
             Network::Nginx(name) => name,
         };
-        
-        let Ok((_, output, _)) = run_script!(format!("docker network ls | grep {}", network_name))
-        else {
-            return self;
-        };
 
-        if output.is_empty()
-            && run_script!(format!("docker network create {}", network_name)).is_err()
-        {
-            return self;
+        let exists = docker::network::exists(network_name).await;
+        if !exists {
+            let _ = docker::network::create(network_name).await;
         }
 
         self
     }
 
-    pub fn remove(self) -> Self {
+    pub async fn remove(self) -> Self {
         let network_name = match &self {
             Network::Internal(name) => name,
             Network::Nginx(name) => name,
         };
 
-        run_script!(format!("docker network rm {}", network_name)).unwrap_or_default();
+        docker::network::remove(network_name).await;
+
         self
     }
 }

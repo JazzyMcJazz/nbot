@@ -1,9 +1,6 @@
 use std::{io::Write, process, thread::sleep};
 
-use crate::{
-    docker, models::Project, utils::networks::Network, APP_STATE
-};
-// use run_script::run_script;
+use crate::{docker, models::Project, utils::networks::Network, APP_STATE};
 
 use super::nginx::Nginx;
 
@@ -27,12 +24,12 @@ impl Run {
         }
 
         let networks = (
-            Network::internal_from_project(&project.name).create(),
-            Network::nginx_from_project(&project.name).create(),
+            Network::internal_from_project(&project.name).create().await,
+            Network::nginx_from_project(&project.name).create().await,
         );
-        
+
         Nginx::connect_to_network(&networks.1).await;
-        
+
         for app in &project.apps {
             let started = app.run(&vec![&networks.0, &networks.1]).await;
             if !started {
@@ -41,7 +38,7 @@ impl Run {
             }
 
             let mut up = false;
-            // let mut reason = String::new();
+            let mut reason = String::new();
 
             if app.domains.is_some() {
                 // wait until container is up
@@ -50,27 +47,25 @@ impl Run {
                     // has been known to cause it to crash. Therefore, we
                     // wait at the start of the loop instead of the end.
                     sleep(std::time::Duration::from_secs(seconds));
-                    
-                    let command = if let Some(port) = &app.port {
-                        format!("curl -I http://{}:{}", &app.container_name, port)
-                    } else {
-                        format!("curl -I http://{}", &app.container_name)
-                    };
 
-                    let result = docker::exec::exec("nbot_nginx", &command).await;
+                    let url = if let Some(port) = &app.port {
+                        format!("http://{}:{}", &app.container_name, port)
+                    } else {
+                        format!("http://{}", &app.container_name)
+                    };
+                    let command = vec!["curl", "-I", url.as_str()];
+                    // format!("curl -I http://{}", &app.container_name)
+
+                    let (output, code, error) = docker::exec::exec("nbot_nginx", &command).await;
 
                     // TODO: check result
-                    
-                    // reason = if error.is_empty() {
-                    //     output
-                    // } else {
-                    //     error
-                    // };
 
-                    // if code == 0 {
-                    //     up = true;
-                    //     break;
-                    // }
+                    reason = if error.is_empty() { output } else { error };
+
+                    if code == 0 {
+                        up = true;
+                        break;
+                    }
                 }
                 Nginx::generate_certificates(app).await;
                 Nginx::add_conf(app);
@@ -88,18 +83,11 @@ impl Run {
                             }
                         }
                     }
-                    
-                    // reason = error;
-
-                    // if code == 0 {
-                    //     up = true;
-                    //     break;
-                    // }
                 }
             }
 
             if !up {
-                println!("{}: failed. Reason: {}", app.name, "TODO: reason");
+                println!("{}: failed. Reason: {}", app.name, reason);
                 println!("Note: If the service takes a long time to spin up, it may not in fact be failing. Run nbot status to check the status of the container.");
                 continue;
             } else {

@@ -39,8 +39,8 @@ impl Rm {
             let project_net = Network::internal_from_project(&project.name);
             let nginx_net = Network::nginx_from_project(&project.name);
             Nginx::disconnect_from_network(&nginx_net).await;
-            project_net.remove();
-            nginx_net.remove();
+            project_net.remove().await;
+            nginx_net.remove().await;
         }
 
         state.projects = projects_to_keep;

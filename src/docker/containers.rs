@@ -1,4 +1,12 @@
-use bollard::{container::{Config, CreateContainerOptions, ListContainersOptions, NetworkingConfig, StartContainerOptions}, secret::{ContainerCreateResponse, ContainerSummary, EndpointSettings, HostConfig, PortBinding}};
+use bollard::{
+    container::{
+        Config, CreateContainerOptions, ListContainersOptions, NetworkingConfig,
+        StartContainerOptions,
+    },
+    secret::{
+        ContainerCreateResponse, ContainerSummary, EndpointSettings, HostConfig, PortBinding,
+    },
+};
 use std::{collections::HashMap, default::Default};
 
 use crate::{models::App, utils::dirs::Dirs, DOCKER};
@@ -17,7 +25,7 @@ pub async fn find_by_name(name: &str) -> Option<ContainerSummary> {
     if containers.is_empty() {
         return None;
     }
-    
+
     Some(containers[0].clone())
 }
 
@@ -29,16 +37,15 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
     });
 
     let port_bindings = {
-        if let Some(port) = &app.port {
-            Some(HashMap::from([
-                (format!("{}/tcp", port), Some(vec![PortBinding {
+        app.port.as_ref().map(|port| {
+            HashMap::from([(
+                format!("{}/tcp", port),
+                Some(vec![PortBinding {
                     host_ip: Some("0.0.0.0".to_string()),
                     host_port: Some(port.to_string()),
-                }])),
-            ]))
-        } else {
-            None
-        }
+                }]),
+            )])
+        })
     };
 
     let host_config = Some(HostConfig {
@@ -50,28 +57,19 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
         ..Default::default()
     });
 
-    // dbg!(&networks);
     let mut endpoints_config = HashMap::new();
-    // for network in networks {
-    //     let (connect, name) = match network {
-    //         Network::Internal(name) => (true, name),
-    //         Network::Nginx(name) => (app.domains.is_some(), name),
-    //     };
-    //     if connect {
-    //         endpoints_config.insert(name.clone(), EndpointSettings::default());
-    //     }
-    // }
 
     for network in app.network_aliases {
-        endpoints_config.insert(network.clone(), EndpointSettings {
-            aliases: Some(vec![network]),
-            ..Default::default()
-        });
+        endpoints_config.insert(
+            network.clone(),
+            EndpointSettings {
+                aliases: Some(vec![network]),
+                ..Default::default()
+            },
+        );
     }
 
-    let networking_config = Some(NetworkingConfig {
-        endpoints_config,
-    });
+    let networking_config = Some(NetworkingConfig { endpoints_config });
 
     let config = Config {
         image: Some(app.image),
@@ -80,23 +78,24 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
         networking_config,
         ..Default::default()
     };
-    
+
     let container = DOCKER.create_container(options, config).await;
     match container {
         Ok(container) => Ok(container),
-        Err(e) => Err(e.to_string())
+        Err(e) => Err(e.to_string()),
     }
 }
 
 pub async fn start(container_id: &str) -> bool {
-    
-    let started = DOCKER.start_container(container_id, None::<StartContainerOptions<String>>).await;
+    let started = DOCKER
+        .start_container(container_id, None::<StartContainerOptions<String>>)
+        .await;
 
     match started {
         Ok(_) => {
             println!("{container_id}");
             true
-        },
+        }
         Err(e) => {
             eprintln!("Error starting container: {}", e);
             false
@@ -108,7 +107,7 @@ pub async fn stop(container_id: &str) {
     match DOCKER.stop_container(container_id, None).await {
         Ok(_) => {
             println!("{container_id}");
-        },
+        }
         Err(e) => {
             eprintln!("Error stopping container: {}", e);
         }
@@ -119,7 +118,7 @@ pub async fn remove(container_id: &str) {
     match DOCKER.remove_container(container_id, None).await {
         Ok(_) => {
             println!("{container_id}");
-        },
+        }
         Err(e) => {
             eprintln!("Error removing container: {}", e);
         }
@@ -141,7 +140,6 @@ pub async fn start_nginx() -> bool {
         ..Default::default()
     });
 
-    
     let containers = DOCKER.list_containers(options).await.unwrap();
     if containers.is_empty() {
         return false;
@@ -166,8 +164,8 @@ pub async fn start_nginx() -> bool {
 }
 
 pub async fn run_nginx() -> bool {
-
-    let image = super::images::find_by_name("nbot/nginx", Some("latest")).await
+    let image = super::images::find_by_name("nbot/nginx", Some("latest"))
+        .await
         .expect("Nginx image not found");
 
     let options = Some(CreateContainerOptions {
@@ -176,14 +174,20 @@ pub async fn run_nginx() -> bool {
     });
 
     let port_bindings = Some(HashMap::from([
-        ("443/tcp".to_string(), Some(vec![PortBinding {
-            host_ip: Some("0.0.0.0".to_string()),
-            host_port: Some("443".to_string()),
-        }])),
-        ("80/tcp".to_string(), Some(vec![PortBinding {
-            host_ip: Some("0.0.0.0".to_string()),
-            host_port: Some("80".to_string()),
-        }])),
+        (
+            "80/tcp".to_string(),
+            Some(vec![PortBinding {
+                host_ip: Some("0.0.0.0".to_string()),
+                host_port: Some("80".to_string()),
+            }]),
+        ),
+        (
+            "443/tcp".to_string(),
+            Some(vec![PortBinding {
+                host_ip: Some("0.0.0.0".to_string()),
+                host_port: Some("443".to_string()),
+            }]),
+        ),
     ]));
 
     let volume_dir = Dirs::nginx_volumes();
@@ -194,21 +198,23 @@ pub async fn run_nginx() -> bool {
         format!("{}/static:/static/", volume_dir),
         format!("{}/media:/media/", volume_dir),
     ]);
-        
+
     let host_config = Some(HostConfig {
         port_bindings,
         binds,
         ..Default::default()
     });
-    
 
     let config = Config {
         image: Some(image.id.as_str()),
         host_config,
-        ..Default::default()  
+        ..Default::default()
     };
 
     Dirs::init_volumes();
-    let container = DOCKER.create_container(options, config).await.expect("Error creating container");
+    let container = DOCKER
+        .create_container(options, config)
+        .await
+        .expect("Error creating container");
     start(container.id.as_str()).await
 }
