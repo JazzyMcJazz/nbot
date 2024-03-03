@@ -90,15 +90,15 @@ generate_certs_certbot() {
     shift 1
     DOMAINS=""
     while [ "$#" -gt 0 ]; do
-        DOMAINS="$DOMAINS$1 "
+        DOMAINS="$DOMAINS-d $1 "
         shift
     done
 
-    # Generate the SSL certificate using Certbot
-    certbot certonly --webroot -w /usr/share/nginx/html "${DOMAINS[@]}" --email "${EMAIL}" --agree-tos --non-interactive
+    CERTBOT_COMMAND="certbot certonly --webroot -w /usr/share/nginx/html ${DOMAINS} --email ${EMAIL} --agree-tos --non-interactive"
+    eval $CERTBOT_COMMAND
 
-    # Dry run
-    # certbot certonly --dry-run --webroot -w ~/nginx_test "${D_FLAGS[@]}" --email "${EMAIL}" --agree-tos --non-interactive
+    # DRY_RUN_COMMAND="certbot certonly --dry-run --webroot -w /usr/share/nginx/html ${DOMAINS} --email ${EMAIL} --agree-tos --non-interactive"
+    # eval $DRY_RUN_COMMAND
 }
 
 generate_certs_openssl() {
