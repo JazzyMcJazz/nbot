@@ -70,7 +70,6 @@ impl App {
     pub async fn start(&self) -> bool {
         let container = docker::containers::find_by_name(self.container_name.as_str()).await;
         if let Some(container) = container {
-            dbg!("found container");
             if let Some(state) = container.state {
                 if state == "running" {
                     return true;

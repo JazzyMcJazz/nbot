@@ -99,8 +99,6 @@ generate_certs_certbot() {
 
     # Dry run
     # certbot certonly --dry-run --webroot -w ~/nginx_test "${D_FLAGS[@]}" --email "${EMAIL}" --agree-tos --non-interactive
-
-    f_call=$1; shift; $f_call "$@"
 }
 
 generate_certs_openssl() {

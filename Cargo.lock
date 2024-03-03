@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "nbot"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "bollard",
  "clap",
