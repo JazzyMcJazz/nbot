@@ -7,7 +7,7 @@ use bollard::{
     secret::ContainerSummary,
 };
 
-use crate::{utils::networks::Network, DOCKER};
+use crate::{utils::networks::Network, APP_STATE, DOCKER};
 
 pub async fn is_connected(container_id: &str, network: &Network) -> bool {
     let network_name = match network {
@@ -48,6 +48,28 @@ pub async fn exists(name: &str) -> bool {
     }
 }
 
+pub async fn find_ids_by_container(container: &str) -> Vec<String> {
+    let details = DOCKER.inspect_container(container, None).await;
+    match details {
+        Ok(details) => {
+            let mut networks = vec![];
+            if let Some(settings) = details.network_settings {
+                if let Some(nets) = settings.networks {
+                    for (name, value) in nets {
+                        if name.starts_with(&APP_STATE.network_prefix) {
+                            if let Some(network_id) = value.network_id {
+                                networks.push(network_id);
+                            }
+                        }
+                    }
+                }
+            }
+            networks
+        }
+        Err(_) => vec![],
+    }
+}
+
 pub async fn create(name: &str) -> bool {
     let options = CreateNetworkOptions {
         name,
@@ -71,6 +93,14 @@ pub async fn remove(name: &str) -> bool {
         Err(e) => {
             eprintln!("Error removing network: {}", e);
             false
+        }
+    }
+}
+
+pub async fn remove_many(names: Vec<String>) {
+    for name in names {
+        if DOCKER.remove_network(&name).await.is_ok() {
+            println!("{}", name);
         }
     }
 }

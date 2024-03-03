@@ -1,6 +1,11 @@
 use std::{io::Write, process, thread::sleep};
 
-use crate::{docker, models::Project, utils::networks::Network, APP_STATE};
+use crate::{
+    docker,
+    models::{App, Project},
+    utils::networks::Network,
+    APP_STATE,
+};
 
 use super::nginx::Nginx;
 
@@ -19,6 +24,9 @@ impl Run {
             }
         }
 
+        // Update app_state and save
+        app_state.add_or_update_project(&project);
+
         if !Nginx::is_running().await {
             Nginx::run(false).await;
         }
@@ -30,7 +38,10 @@ impl Run {
 
         Nginx::connect_to_network(&networks.1).await;
 
-        for app in &project.apps {
+        let apps = App::topological_sort_by_dependenceis(&project.apps);
+        for app in &apps {
+            sleep(std::time::Duration::from_secs(1));
+
             let started = app.run(&vec![&networks.0, &networks.1]).await;
             if !started {
                 println!("{}: failed", app.name);
@@ -48,15 +59,20 @@ impl Run {
                     // wait at the start of the loop instead of the end.
                     sleep(std::time::Duration::from_secs(seconds));
 
+                    if !app.is_running().await {
+                        app.start().await;
+                    }
+
                     let url = if let Some(port) = &app.port {
                         format!("http://{}:{}", &app.container_name, port)
                     } else {
                         format!("http://{}", &app.container_name)
                     };
-                    let command = vec!["curl", "-I", url.as_str()];
+                    let cmd = vec!["curl", "-I", url.as_str()];
                     // format!("curl -I http://{}", &app.container_name)
 
-                    let (output, code, error) = docker::exec::exec("nbot_nginx", &command).await;
+                    let name = format!("{}nginx", app_state.container_prefix);
+                    let (output, code, error) = docker::exec::exec(&name, &cmd).await;
 
                     // TODO: check result
 
@@ -68,7 +84,7 @@ impl Run {
                     }
                 }
                 Nginx::generate_certificates(app).await;
-                Nginx::add_conf(app);
+                Nginx::add_conf(app).await;
             } else {
                 // check if container is up
                 for seconds in 1..15 {
@@ -92,7 +108,5 @@ impl Run {
                 continue;
             }
         }
-
-        app_state.add_or_update_project(project);
     }
 }

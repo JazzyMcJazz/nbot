@@ -6,7 +6,7 @@ use futures_util::stream::StreamExt;
 use std::collections::HashMap;
 
 use crate::{
-    files::{NGINX_DEFAULT_CONF, NGINX_DOCKERFILE, NGINX_ENTRYPOINT, NGINX_SCHEDULER},
+    nginx_files::{self as f},
     utils::tarball::Tarball,
     DOCKER,
 };
@@ -64,10 +64,12 @@ pub async fn remove(image_id: &str) -> bool {
 
 pub async fn build_nginx() {
     let files: Vec<(&str, &str)> = vec![
-        ("Dockerfile", NGINX_DOCKERFILE),
-        ("entrypoint.sh", NGINX_ENTRYPOINT),
-        ("scheduler.txt", NGINX_SCHEDULER),
-        ("default.conf", NGINX_DEFAULT_CONF),
+        ("Dockerfile", f::NGINX_DOCKERFILE),
+        ("entrypoint.sh", f::NGINX_ENTRYPOINT),
+        ("scheduler.txt", f::NGINX_SCHEDULER),
+        ("default.conf", f::NGINX_DEFAULT_CONF),
+        ("template.conf", f::NGINX_TEMPLATE_CONF),
+        ("functions.sh", f::NGINX_FUNCTIONS),
     ];
 
     let tarball = Tarball::create(files).expect("Error creating tarball");

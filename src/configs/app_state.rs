@@ -6,9 +6,9 @@ use crate::{models::Project, utils::dirs::Dirs};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppState {
-    container_prefix: String,
-    image_prefix: String,
-    network_prefix: String,
+    pub container_prefix: String,
+    pub image_prefix: String,
+    pub network_prefix: String,
     pub projects: Vec<Project>,
 }
 
@@ -48,21 +48,10 @@ impl AppState {
         }
     }
 
-    pub fn add_or_update_project(&mut self, project: Project) {
+    pub fn add_or_update_project(&mut self, project: &Project) {
+        let project = project.clone();
         if let Some(existing_project) = self.projects.iter_mut().find(|p| p.name == project.name) {
             existing_project.apps = project.apps;
-
-            // for app in project.apps {
-            //     if let Some(existing_app) = existing_project
-            //         .apps
-            //         .iter_mut()
-            //         .find(|a| a.name == app.name)
-            //     {
-            //         existing_app.update(app);
-            //     } else {
-            //         existing_project.apps.push(app.to_owned());
-            //     }
-            // }
         } else {
             self.projects.push(project);
         }

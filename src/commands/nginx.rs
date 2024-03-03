@@ -1,12 +1,9 @@
 use clap::ArgMatches;
-use run_script::run_script;
-use std::fs;
 
 use crate::{
     docker,
-    files::*,
     models::App,
-    utils::{dirs::Dirs, networks::Network},
+    utils::{contants::NGINX_CONTAINER_NAME, networks::Network},
     APP_STATE,
 };
 
@@ -18,7 +15,6 @@ impl Nginx {
             Some(("run", args)) => {
                 let build = args.get_flag("build");
                 Nginx::run(build).await;
-                Dirs::rm_temp();
             }
             Some(("stop", args)) => {
                 let remove = args.get_flag("remove");
@@ -30,7 +26,7 @@ impl Nginx {
 
     pub async fn run(build: bool) {
         let started = docker::containers::start_nginx().await;
-        if started {
+        if started && !build {
             return;
         }
 
@@ -59,7 +55,8 @@ impl Nginx {
     }
 
     pub async fn stop(remove: bool) {
-        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let container = docker::containers::find_by_name(&name).await;
         let Some(container) = container else {
             return;
         };
@@ -77,7 +74,8 @@ impl Nginx {
         match network {
             Network::Internal(_) => {}
             Network::Nginx(_) => {
-                let container = docker::containers::find_by_name("nbot_nginx").await;
+                let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+                let container = docker::containers::find_by_name(&name).await;
                 let Some(container) = container else {
                     return;
                 };
@@ -96,7 +94,8 @@ impl Nginx {
         match network {
             Network::Internal(_) => {}
             Network::Nginx(_) => {
-                let container = docker::containers::find_by_name("nbot_nginx").await;
+                let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+                let container = docker::containers::find_by_name(&name).await;
                 let Some(container) = container else {
                     return;
                 };
@@ -107,7 +106,8 @@ impl Nginx {
     }
 
     pub async fn is_running() -> bool {
-        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let container = docker::containers::find_by_name(&name).await;
         let Some(container) = container else {
             return false;
         };
@@ -119,56 +119,55 @@ impl Nginx {
         false
     }
 
-    pub fn add_conf(app: &App) {
+    pub async fn add_conf(app: &App) {
         if app.domains.is_none() {
             return;
         }
 
         let domains = app.domains.as_ref().unwrap();
-        let mut files = Vec::<(String, String)>::new();
-        for domain in domains {
-            let mut conf = NGINX_TEMPLATE_CONF
-                .replace("{{name}}", &app.container_name)
-                .replace("{{domain}}", domain);
-
-            let port = match &app.port {
-                Some(port) => port,
-                None => "80",
-            };
-
-            conf = conf.replace("{{port}}", port);
-
-            // If domain does not have a subdomain, add www subdomain
-            let www_domain = if domain.split('.').count() == 2 {
-                format!(" www.{}", domain) // must have space in front
-            } else {
-                "".to_owned()
-            };
-            conf = conf.replace("{{www_domain}}", www_domain.as_str());
-
-            files.push((domain.to_owned(), conf));
+        if domains.is_empty() {
+            return;
         }
 
-        let confd = Dirs::nginx_confd();
-        for (file_name, content) in files {
-            let file_path = format!("{}/{}.conf", confd, file_name);
-            // if fs::read_to_string(&file_path).is_err() {
-            fs::write(&file_path, content).unwrap();
-            // }
-        }
+        let file_name = &domains.first().unwrap();
+        let container_name = &app.container_name;
+        let nginx_container = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let port = match &app.port {
+            Some(port) => port,
+            None => "80",
+        };
+
+        let mut cmd = vec![
+            "sh",
+            "/functions.sh",
+            "add_conf",
+            file_name.as_str(),
+            container_name,
+            port,
+        ];
+        cmd.extend(domains.iter().map(|d| d.as_str()));
+
+        docker::exec::exec(&nginx_container, &cmd).await;
     }
 
-    pub fn remove_conf(app: &App) {
+    pub async fn remove_conf(app: &App) {
         if app.domains.is_none() {
             return;
         }
+
         let domains = app.domains.as_ref().unwrap();
-        let confd = Dirs::nginx_confd();
-        for domain in domains {
-            let file_path = format!("{}/{}.conf", confd, domain);
-            if fs::read_to_string(&file_path).is_ok() {
-                fs::remove_file(&file_path).unwrap();
-            }
+        if domains.is_empty() {
+            return;
+        }
+
+        let file_name = &domains.first().unwrap();
+        let cmd = vec!["sh", "/functions.sh", "remove_conf", file_name.as_str()];
+        let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let (_, code, error) = docker::exec::exec(&name, &cmd).await;
+
+        if code != 0 {
+            eprintln!("Error removing conf");
+            eprintln!("{}", error);
         }
     }
 
@@ -177,7 +176,8 @@ impl Nginx {
             return;
         }
         let domains = app.domains.as_ref().unwrap();
-        let container = docker::containers::find_by_name("nbot_nginx").await;
+        let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let container = docker::containers::find_by_name(&name).await;
         let Some(container) = container else {
             return;
         };
@@ -185,83 +185,26 @@ impl Nginx {
             return;
         };
 
-        for domain in domains {
-            let certs_dir = Dirs::nginx_certs();
-            let command = format!("mkdir -p {certs_dir}/live/{domain}");
+        let use_openssl = app.openssl.unwrap_or(false);
+
+        let cmd = if use_openssl {
+            vec![
+                "sh",
+                "/functions.sh",
+                "generate_certs_openssl",
+                domains.first().unwrap(),
+            ]
+        } else {
             let email = app.email.as_ref().unwrap();
+            let mut cmd = vec!["sh", "/functions.sh", "generate_certs_certbot", email];
+            cmd.extend(domains.iter().map(|d| d.as_str()));
+            cmd
+        };
 
-            run_script!(command).unwrap_or_default();
-
-            let use_openssl = app.openssl.unwrap_or(false);
-
-            // check if certificate exists
-            let file_path = format!("/etc/letsencrypt/live/{}/fullchain.pem", domain);
-            let command = if use_openssl {
-                vec![
-                    "openssl",
-                    "x509",
-                    "-checkend",
-                    "86400",
-                    "-noout",
-                    "-in",
-                    file_path.as_str(),
-                ]
-            } else {
-                vec!["certbot", "certificates", "|", "grep", domain]
-            };
-
-            // if certificate exists, continue
-            let (output, code, ..) = docker::exec::exec(container_id.as_str(), &command).await;
-            if use_openssl && code == 0 {
-                continue;
-            }
-
-            if !use_openssl && !output.is_empty() {
-                continue;
-            }
-
-            let file_path = format!("/etc/letsencrypt/live/{domain}/privkey.pem");
-            let subject = format!("/C=''/ST=''/L=''/O=''/OU=''/CN={domain}");
-            let output = format!("/etc/letsencrypt/live/{domain}/fullchain.pem");
-            let command = if use_openssl {
-                vec![
-                    "openssl",
-                    "req",
-                    "-x509",
-                    "-nodes",
-                    "-days",
-                    "365",
-                    "-newkey",
-                    "rsa:2048",
-                    "-keyout",
-                    file_path.as_str(),
-                    "-out",
-                    output.as_str(),
-                    "-subj",
-                    subject.as_str(),
-                ]
-            } else {
-                vec![
-                    "certbot",
-                    "certonly",
-                    "--webroot",
-                    "-v",
-                    "-w",
-                    "/usr/share/nginx/html",
-                    "-d",
-                    domain,
-                    "--email",
-                    email,
-                    "--agree-tos",
-                    "--non-interactive",
-                ]
-            };
-
-            let (_, code, error) = docker::exec::exec(container_id.as_str(), &command).await;
-            if code != 0 {
-                eprintln!("Error generating certificate for {}", domain);
-                eprintln!("{}", error);
-            }
+        let (_, code, error) = docker::exec::exec(container_id.as_str(), &cmd).await;
+        if code != 0 {
+            eprintln!("Error generating certificate");
+            eprintln!("{}", error);
         }
     }
 }

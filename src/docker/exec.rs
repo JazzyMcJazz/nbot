@@ -9,6 +9,7 @@ use crate::DOCKER;
 pub async fn exec(container_id: &str, cmd: &[&str]) -> (String, i64, String) {
     let config = CreateExecOptions {
         cmd: Some(cmd.to_owned()),
+        // working_dir: Some("/"),
         attach_stdout: Some(true),
         attach_stderr: Some(true),
         ..Default::default()

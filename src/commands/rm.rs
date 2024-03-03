@@ -29,11 +29,11 @@ impl Rm {
 
         for project in projects_to_remove {
             for app in &project.apps {
-                Nginx::remove_conf(app);
+                Nginx::remove_conf(app).await;
                 if app.is_running().await {
                     app.stop().await;
-                    app.remove().await;
                 }
+                app.remove().await;
             }
 
             let project_net = Network::internal_from_project(&project.name);

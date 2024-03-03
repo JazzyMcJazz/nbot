@@ -1,20 +1,16 @@
 use std::vec;
 use tabled::{Table, Tabled};
 
-use crate::{docker, models::App, APP_STATE};
+use crate::{docker, models::App, utils::contants::NGINX_CONTAINER_NAME, APP_STATE};
 
 #[derive(Tabled)]
 struct AppStatus {
     project: String,
     service: String,
-    container_id: String,
     container_name: String,
     status: String,
-    ports: String,
     domains: String,
     image: String,
-    volumes: String,
-    env_vars: String,
     certificate: String,
 }
 
@@ -22,12 +18,8 @@ impl AppStatus {
     pub async fn from_apps(apps: Vec<App>, project: &String) -> Vec<Self> {
         let mut app_statuses = vec![];
         for app in apps {
-            let (container_id, status) = Self::get_app_status(&app).await;
+            let (_, status) = Self::get_app_status(&app).await;
 
-            let ports = match app.port {
-                Some(port) => port,
-                None => String::new(),
-            };
             let domains = match app.domains {
                 Some(domains) => {
                     let mut domains_str = String::new();
@@ -40,19 +32,6 @@ impl AppStatus {
                 None => String::new(),
             };
 
-            let mut env_vars = String::new();
-            for env_var in app.env_vars {
-                let linebreak = if env_vars.is_empty() { "" } else { "\n" };
-                let var = env_var.split('=').collect::<Vec<&str>>()[0];
-                env_vars.push_str(&format!("{linebreak}{var}=***"));
-            }
-
-            let mut volumes = String::new();
-            for volume in app.volumes {
-                let linebreak = if volumes.is_empty() { "" } else { "\n" };
-                volumes.push_str(&format!("{linebreak}{volume}"));
-            }
-
             let certificate = match app.openssl {
                 Some(openssl) => if openssl { "openssl" } else { "letsencrypt" }.to_owned(),
                 None => String::new(),
@@ -61,14 +40,10 @@ impl AppStatus {
             app_statuses.push(AppStatus {
                 project: project.to_owned(),
                 service: app.name,
-                container_id,
                 container_name: app.container_name,
                 status,
-                ports,
                 domains,
                 image: app.image,
-                env_vars,
-                volumes,
                 certificate,
             });
         }
@@ -92,22 +67,37 @@ impl AppStatus {
 }
 
 pub struct Status {
+    nginx: String,
     apps: Vec<AppStatus>,
 }
 
 impl Status {
     pub async fn new() -> Self {
+        let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
+        let container = docker::containers::find_by_name(&name).await;
+        let mut nginx_status = "Nginx: not found".to_owned();
+        if let Some(container) = container {
+            let status = container.state.unwrap();
+            nginx_status = format!("Nginx: {}", status);
+        }
+
         let state = APP_STATE.clone();
         let mut apps = vec![];
         for project in state.projects {
             apps.append(&mut AppStatus::from_apps(project.apps, &project.name).await);
         }
 
-        Status { apps }
+        Status {
+            nginx: nginx_status,
+            apps,
+        }
     }
 
     pub fn display(&self) {
+        println!("\n{}\n", self.nginx);
         let table = Table::new(&self.apps);
-        println!("{}", table);
+        if !self.apps.is_empty() {
+            println!("{}", table);
+        }
     }
 }

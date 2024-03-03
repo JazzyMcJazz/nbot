@@ -6,8 +6,8 @@ mod args;
 mod commands;
 mod configs;
 mod docker;
-mod files;
 mod models;
+mod nginx_files;
 mod utils;
 
 static APP_STATE: Lazy<AppState> = Lazy::new(AppState::from_storage);

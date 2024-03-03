@@ -1,4 +1,4 @@
-use crate::docker;
+use crate::{docker, APP_STATE};
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub enum Network {
@@ -8,11 +8,14 @@ pub enum Network {
 
 impl Network {
     pub fn internal_from_project(project_name: &String) -> Self {
-        Network::Internal(format!("nbot_{}_net", project_name))
+        Network::Internal(format!("{}{}_net", APP_STATE.network_prefix, project_name))
     }
 
     pub fn nginx_from_project(project_name: &String) -> Self {
-        Network::Nginx(format!("nbot_nginx_{}_net", project_name))
+        Network::Nginx(format!(
+            "{}nginx_{}_net",
+            APP_STATE.network_prefix, project_name
+        ))
     }
 
     pub async fn create(self) -> Self {

@@ -7,7 +7,7 @@ function inotifywait_listen() {
     done
 }
 
-echo "Certbot entrypoint is running."
+echo "Nginx entrypoint"
 
 cp default.conf /etc/nginx/conf.d/default.conf >> /dev/null 2>&1
 

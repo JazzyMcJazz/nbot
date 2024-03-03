@@ -1,6 +1,7 @@
 use clap::ArgMatches;
 
 mod nginx;
+mod reset;
 mod rm;
 mod run;
 mod start;
@@ -9,6 +10,7 @@ mod stop;
 mod up_down;
 
 use nginx::Nginx;
+use reset::Reset;
 use rm::Rm;
 use run::Run;
 use start::Start;
@@ -47,6 +49,10 @@ pub async fn process_matches(args: ArgMatches) {
         }
         Some(("status", _)) => {
             Status::new().await.display();
+        }
+        Some(("reset", args)) => {
+            let force = args.get_flag("force");
+            Reset::execute(force).await;
         }
         _ => unreachable!(),
     }

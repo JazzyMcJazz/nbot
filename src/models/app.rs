@@ -1,7 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 
-use crate::{docker, utils::networks::Network};
+use crate::{docker, utils::networks::Network, APP_STATE};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct App {
@@ -21,7 +23,7 @@ pub struct App {
 
 impl App {
     pub async fn run(&self, networks: &Vec<&Network>) -> bool {
-        if self.is_using_latest_image().await {
+        if self.is_using_latest_image().await && self.is_running().await {
             return true;
         }
 
@@ -46,7 +48,12 @@ impl App {
             if connect {
                 let connected = docker::network::is_connected(container.id.as_str(), network).await;
                 if !connected {
-                    docker::network::connect(container.id.as_str(), network).await;
+                    let did_connect =
+                        docker::network::connect(container.id.as_str(), network).await;
+                    if !did_connect {
+                        eprintln!("Error connecting container to network");
+                        return false;
+                    }
                 }
             }
         }
@@ -63,6 +70,7 @@ impl App {
     pub async fn start(&self) -> bool {
         let container = docker::containers::find_by_name(self.container_name.as_str()).await;
         if let Some(container) = container {
+            dbg!("found container");
             if let Some(state) = container.state {
                 if state == "running" {
                     return true;
@@ -274,7 +282,7 @@ impl App {
             app_list.push(App {
                 name: app.value.to_owned(),
                 image,
-                container_name: format!("nbot_{}_{}", project, app.value),
+                container_name: format!("{}{}_{}", APP_STATE.container_prefix, project, app.value),
                 env_vars,
                 port: virtual_port,
                 volumes,
@@ -346,7 +354,67 @@ impl App {
             }
         }
 
+        app_list.reverse();
         app_list
+    }
+
+    pub fn topological_sort_by_dependenceis(apps: &Vec<App>) -> Vec<App> {
+        let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+        let mut visited: HashSet<String> = HashSet::new();
+        let mut stack: Vec<String> = Vec::new();
+        let mut in_process: HashSet<String> = HashSet::new();
+
+        // Create graph
+        for app in apps {
+            graph.insert(app.name.to_owned(), app.depends_on.to_owned());
+        }
+
+        // DFS function to visit nodes
+        fn dfs(
+            node: &String,
+            graph: &HashMap<String, Vec<String>>,
+            visited: &mut HashSet<String>,
+            stask: &mut Vec<String>,
+            in_process: &mut HashSet<String>,
+        ) {
+            if visited.contains(node) {
+                return;
+            }
+            if in_process.contains(node) {
+                panic!("Error: Circular dependency detected");
+            }
+
+            in_process.insert(node.to_owned());
+            if let Some(neighbors) = graph.get(node) {
+                for neighbor in neighbors {
+                    dfs(neighbor, graph, visited, stask, in_process);
+                }
+            }
+
+            in_process.remove(node);
+            visited.insert(node.to_owned());
+            stask.push(node.to_owned());
+        }
+
+        // Visit nodes
+        for node in graph.keys() {
+            if !visited.contains(node) {
+                dfs(node, &graph, &mut visited, &mut stack, &mut in_process);
+            }
+        }
+
+        // Reverse stack
+        let sorted: Vec<App> = stack
+            .iter()
+            .map(|name| {
+                apps.iter()
+                    .find(|app| app.name == *name)
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+
+        sorted
     }
 
     fn collect_flags<T>(args: &ArgMatches, flag: &'static str) -> Vec<Flag<T>>

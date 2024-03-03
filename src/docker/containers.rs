@@ -1,3 +1,7 @@
+use crate::utils::contants::{
+    NGINX_CERT_VOLUME, NGINX_CONFD_VOLUME, NGINX_CONTAINER_NAME, NGINX_HTML_VOLUME,
+    NGINX_IMAGE_NAME, NGINX_MEDIA_VOLUME, NGINX_STATIC_VOLUME,
+};
 use bollard::{
     container::{
         Config, CreateContainerOptions, ListContainersOptions, NetworkingConfig,
@@ -9,7 +13,7 @@ use bollard::{
 };
 use std::{collections::HashMap, default::Default};
 
-use crate::{models::App, utils::dirs::Dirs, DOCKER};
+use crate::{models::App, APP_STATE, DOCKER};
 
 pub async fn find_by_name(name: &str) -> Option<ContainerSummary> {
     let mut filters = HashMap::new();
@@ -116,7 +120,7 @@ pub async fn remove(container_id: &str) {
 }
 
 pub async fn start_nginx() -> bool {
-    let image = super::images::find_by_name("nbot/nginx", Some("latest")).await;
+    let image = super::images::find_by_name(NGINX_IMAGE_NAME, Some("latest")).await;
     let Some(image) = image else {
         return false;
     };
@@ -154,12 +158,13 @@ pub async fn start_nginx() -> bool {
 }
 
 pub async fn run_nginx() -> bool {
-    let image = super::images::find_by_name("nbot/nginx", Some("latest"))
+    let image = super::images::find_by_name(NGINX_IMAGE_NAME, Some("latest"))
         .await
         .expect("Nginx image not found");
 
+    let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
     let options = Some(CreateContainerOptions {
-        name: "nbot_nginx",
+        name,
         platform: None,
     });
 
@@ -180,13 +185,12 @@ pub async fn run_nginx() -> bool {
         ),
     ]));
 
-    let volume_dir = Dirs::nginx_volumes();
     let binds = Some(vec![
-        format!("{}/certs:/etc/letsencrypt:rw", volume_dir),
-        format!("{}/conf.d:/etc/nginx/conf.d", volume_dir),
-        format!("{}/html:/usr/share/nginx/html", volume_dir),
-        format!("{}/static:/static/", volume_dir),
-        format!("{}/media:/media/", volume_dir),
+        NGINX_CERT_VOLUME.to_owned(),
+        NGINX_CONFD_VOLUME.to_owned(),
+        NGINX_HTML_VOLUME.to_owned(),
+        NGINX_STATIC_VOLUME.to_owned(),
+        NGINX_MEDIA_VOLUME.to_owned(),
     ]);
 
     let host_config = Some(HostConfig {
@@ -201,7 +205,6 @@ pub async fn run_nginx() -> bool {
         ..Default::default()
     };
 
-    Dirs::init_volumes();
     let container = DOCKER
         .create_container(options, config)
         .await

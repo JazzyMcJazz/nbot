@@ -19,17 +19,12 @@ impl UpDown {
 
     pub async fn down() {
         let state = APP_STATE.to_owned();
-
-        if Nginx::is_running().await {
-            Nginx::stop(true).await;
-        }
+        Nginx::stop(true).await;
 
         for project in state.projects {
             for app in project.apps {
-                if app.is_running().await {
-                    app.stop().await;
-                    app.remove().await;
-                }
+                app.stop().await;
+                app.remove().await;
             }
         }
     }

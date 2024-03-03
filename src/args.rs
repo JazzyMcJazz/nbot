@@ -109,7 +109,7 @@ pub fn get_matches() -> ArgMatches {
                 .arg(
                     Arg::new("depends-on")
                         .short('d')
-                        .long("depends_on")
+                        .long("depends-on")
                         .help("Apps that this app depends on (optional, multiple allowed per app)")
                         .required(false)
                         .action(ArgAction::Append)
@@ -188,6 +188,18 @@ pub fn get_matches() -> ArgMatches {
         .subcommand(
             Command::new("status")
                 .about("Displays the status of all projects")
+        )
+        .subcommand(
+            Command::new("reset")
+                .about("Removes all nginx volumes (including certificates), project containers, networks and configurations. Use with caution!")
+                .arg(
+                    Arg::new("force")
+                        .short('f')
+                        .long("force")
+                        .help("Skip confirmation prompt (optional, defaults to false)")
+                        .required(false)
+                        .action(ArgAction::SetTrue)
+                )
         )
         .get_matches()
 }
