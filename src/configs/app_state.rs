@@ -61,7 +61,10 @@ impl AppState {
     pub fn save(&self) {
         let config_file = Dirs::config_file();
         let config = serde_json::to_string(&self).unwrap();
-        fs::write(config_file, config).expect("Failed to write config file");
+        if fs::write(config_file, config).is_err() {
+            eprintln!("Failed to write config file");
+            process::exit(1);
+        }
     }
 
     pub fn exists(&self, project_name: &str) -> bool {

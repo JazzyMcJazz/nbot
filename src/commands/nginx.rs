@@ -77,6 +77,7 @@ impl Nginx {
                 let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
                 let container = docker::containers::find_by_name(&name).await;
                 let Some(container) = container else {
+                    eprintln!("Nginx container not found");
                     return;
                 };
 
@@ -124,7 +125,7 @@ impl Nginx {
             return;
         }
 
-        let domains = app.domains.as_ref().unwrap();
+        let domains = app.domains.as_ref().expect("domains not found when adding conf");
         if domains.is_empty() {
             return;
         }

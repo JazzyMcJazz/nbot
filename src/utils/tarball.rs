@@ -11,7 +11,10 @@ impl Tarball {
 
         for (file, content) in files {
             let mut header = tar::Header::new_gnu();
-            header.set_path(file).unwrap();
+            if header.set_path(file).is_err() {
+                eprintln!("Error setting path for file: {}", file);
+                std::process::exit(1);
+            }
             header.set_size(content.as_bytes().len() as u64);
             header.set_cksum();
             tar_builder.append(&header, content.as_bytes())?;

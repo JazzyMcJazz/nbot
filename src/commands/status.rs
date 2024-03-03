@@ -8,6 +8,7 @@ struct AppStatus {
     project: String,
     service: String,
     container_name: String,
+    port: String,
     status: String,
     domains: String,
     image: String,
@@ -37,10 +38,16 @@ impl AppStatus {
                 None => String::new(),
             };
 
+            let port = match app.port {
+                Some(port) => port.to_string(),
+                None => "".to_owned(),
+            };
+
             app_statuses.push(AppStatus {
                 project: project.to_owned(),
                 service: app.name,
                 container_name: app.container_name,
+                port,
                 status,
                 domains,
                 image: app.image,

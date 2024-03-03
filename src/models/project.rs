@@ -14,24 +14,36 @@ pub struct Project {
 impl Project {
     pub fn from_cli_run(args: &ArgMatches) -> Self {
         let name = args
-            .get_one::<String>("name")
-            .expect("No project name provided")
-            .to_owned();
+            .get_one::<String>("name");
+
+        let Some(name) = name else {
+            eprintln!("No project name provided");
+            std::process::exit(1);
+        };
+
         let apps = App::from_cli(args, &name);
-        Self { name, apps }
+        Self { name: name.to_owned(), apps }
     }
 
     pub fn from_cli_start(args: &ArgMatches) -> Self {
         let name = args
-            .get_one::<String>("project")
-            .expect("No project name provided")
-            .to_owned();
+            .get_one::<String>("project");
+
+        let Some(name) = name else {
+            eprintln!("No project name provided");
+            std::process::exit(1);
+        };
+
         let project = APP_STATE
             .projects
             .iter()
-            .find(|project| project.name == name)
-            .expect("Project not found");
+            .find(|project| project.name == name.to_owned());
 
-        project.clone()
+        let Some(project) = project else {
+            eprintln!("Project not found");
+            std::process::exit(1);
+        };
+
+        project.to_owned()
     }
 }

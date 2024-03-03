@@ -140,7 +140,8 @@ pub async fn start_nginx() -> bool {
     }
 
     if containers.len() > 1 {
-        panic!("More than one instance of nginx is running")
+        eprintln!("More than one instance of nginx is running");
+        std::process::exit(1);
     }
 
     let nginx = &containers[0];
@@ -158,9 +159,12 @@ pub async fn start_nginx() -> bool {
 }
 
 pub async fn run_nginx() -> bool {
-    let image = super::images::find_by_name(NGINX_IMAGE_NAME, Some("latest"))
-        .await
-        .expect("Nginx image not found");
+    let image = super::images::find_by_name(NGINX_IMAGE_NAME, Some("latest")).await;
+        
+    let Some(image) = image else {
+        eprintln!("Nginx image not found");
+        std::process::exit(1);
+    };
 
     let name = format!("{}{}", APP_STATE.container_prefix, NGINX_CONTAINER_NAME);
     let options = Some(CreateContainerOptions {
@@ -207,7 +211,12 @@ pub async fn run_nginx() -> bool {
 
     let container = DOCKER
         .create_container(options, config)
-        .await
-        .expect("Error creating container");
+        .await;
+
+    let Ok(container) = container else {
+        eprintln!("Error creating nginx container");
+        std::process::exit(1);
+    };
+
     start(container.id.as_str()).await
 }

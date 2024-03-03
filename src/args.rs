@@ -67,6 +67,14 @@ pub fn get_matches() -> ArgMatches {
                         .action(ArgAction::SetTrue)
                 )
                 .arg(
+                    Arg::new("openssl")
+                        .short('s')
+                        .long("openssl")
+                        .help("Use OpenSSL instead of Let's Encrypt for SSL certificates (optional, defaults to false). This option is applied to all apps in the project.")
+                        .required(false)
+                        .action(ArgAction::SetTrue)
+                )
+                .arg(
                     Arg::new("app")
                         .short('a')
                         .long("app")
@@ -120,6 +128,7 @@ pub fn get_matches() -> ArgMatches {
                         .long("domain")
                         .help("Domain to use for the project. Exposes the app to the internet (optional, multiple allowed per app)")
                         .required(false)
+                        .action(ArgAction::Append)
                 )
                 .arg(
                     Arg::new("email")
@@ -127,14 +136,7 @@ pub fn get_matches() -> ArgMatches {
                         .long("email")
                         .help("Email to use for the project (required if --domain is used)")
                         .required(false)
-                )
-                .arg(
-                    Arg::new("openssl")
-                        .short('s')
-                        .long("openssl")
-                        .help("Use OpenSSL instead of Let's Encrypt for SSL certificates (optional, defaults to false)")
-                        .required(false)
-                        .action(ArgAction::SetTrue)
+                        .action(ArgAction::Append)
                 )
                 .arg(
                     Arg::new("privileged")

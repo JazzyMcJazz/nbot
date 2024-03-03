@@ -91,7 +91,8 @@ pub async fn build_nginx() {
                 }
             }
             Err(e) => {
-                panic!("Error building image: {}", e);
+                eprintln!("Error building image: {}", e);
+                std::process::exit(1);
             }
         }
     }

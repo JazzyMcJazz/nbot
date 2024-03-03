@@ -6,10 +6,19 @@ pub struct Dirs;
 
 impl Dirs {
     fn dir() -> String {
-        let dirs = ProjectDirs::from("dev", "treeleaf", "nbot").unwrap();
+        let dirs = ProjectDirs::from("dev", "treeleaf", "nbot");
+
+        let Some(dirs) = dirs else {
+            eprintln!("Failed to get config directory");
+            std::process::exit(1);
+        };
+
         let config_dir = dirs.config_dir();
         if fs::read_dir(config_dir).is_err() {
-            fs::create_dir_all(config_dir).expect("Failed to create config directory");
+            if fs::create_dir_all(config_dir).is_err() {
+                eprintln!("Failed to create config directory");
+                std::process::exit(1);
+            }
         }
         config_dir
             .to_str()
@@ -28,6 +37,9 @@ impl Dirs {
 
     pub fn rm_all() {
         let config_dir = Self::dir();
-        fs::remove_dir_all(config_dir).expect("Failed to remove config directory");
+        if fs::remove_dir_all(config_dir).is_err() {
+            eprintln!("Failed to remove config directory");
+            std::process::exit(1);
+        }
     }
 }

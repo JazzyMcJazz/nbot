@@ -142,9 +142,9 @@ impl App {
         let mut depends_on_list = Self::collect_flags::<String>(args, "depends-on");
         let mut domain_list = Self::collect_flags::<String>(args, "domain");
         let mut email_list = Self::collect_flags::<String>(args, "email");
-        let mut openssl_list = Self::collect_flags::<bool>(args, "openssl");
         let mut privileged_list = Self::collect_flags::<bool>(args, "privileged");
         let mut network_aliases_list = Self::collect_flags::<String>(args, "network-alias");
+        let uses_openssl = args.get_flag("openssl");
 
         let mut app_list: Vec<App> = vec![];
         while let Some(app) = apps.pop() {
@@ -156,11 +156,13 @@ impl App {
             let mut domains: Vec<String> = vec![];
             let mut network_aliases: Vec<String> = vec![];
             let mut privileged = false;
+            let mut openssl: Option<bool> = None;
 
             while let Some(image_name) = image_list.pop() {
                 if image_name.index > app.index {
                     if !image.is_empty() {
-                        panic!("Error: App cannot have more than one image");
+                        eprintln!("Error: App cannot have more than one image");
+                        std::process::exit(1);
                     }
                     image = image_name.value;
                 } else {
@@ -170,7 +172,8 @@ impl App {
             }
 
             if image.is_empty() {
-                panic!("Error: App must have an image");
+                eprintln!("Error: App must have an image");
+                std::process::exit(1);
             }
 
             while let Some(env) = env_list.pop() {
@@ -185,7 +188,8 @@ impl App {
             while let Some(port) = port_list.pop() {
                 if port.index > app.index {
                     if virtual_port.is_some() {
-                        panic!("Error: App cannot have more than one port");
+                        eprintln!("Error: App cannot have more than one port");
+                        std::process::exit(1);
                     }
                     virtual_port = Some(port.value);
                 } else {
@@ -215,6 +219,7 @@ impl App {
             while let Some(domain) = domain_list.pop() {
                 if domain.index > app.index {
                     domains.push(domain.value);
+                    openssl = Some(uses_openssl);
                 } else {
                     domain_list.push(domain);
                     break;
@@ -239,7 +244,8 @@ impl App {
             while let Some(privileged_flag) = privileged_list.pop() {
                 if privileged_flag.index > app.index {
                     if privileged {
-                        panic!("Error: App cannot have more than one privileged flag");
+                        eprintln!("Error: App cannot have more than one privileged flag");
+                        std::process::exit(1);
                     }
                     privileged = privileged_flag.value;
                 } else {
@@ -252,7 +258,8 @@ impl App {
             while let Some(email_address) = email_list.pop() {
                 if email_address.index > app.index {
                     if email.is_some() {
-                        panic!("Error: App cannot have more than one email");
+                        eprintln!("Error: App cannot have more than one email");
+                        std::process::exit(1);
                     }
                     email = Some(email_address.value);
                 } else {
@@ -261,21 +268,13 @@ impl App {
                 }
             }
 
-            if email.is_none() && domains.is_some() {
-                panic!("Error: App must have an email if it has domains. This is required for SSL certificates.");
-            }
+            if virtual_port.is_none() && domains.is_some() {
+                virtual_port = Some("80".to_owned());
+            } 
 
-            let mut openssl: Option<bool> = None;
-            while let Some(openssl_flag) = openssl_list.pop() {
-                if openssl_flag.index > app.index {
-                    if openssl.is_some() {
-                        panic!("Error: App cannot have more than one openssl flag");
-                    }
-                    openssl = Some(openssl_flag.value);
-                } else {
-                    openssl_list.push(openssl_flag);
-                    break;
-                }
+            if email.is_none() && domains.is_some() {
+                eprintln!("Error: App must have an email if it has domains. This is required for SSL certificates.");
+                std::process::exit(1);
             }
 
             app_list.push(App {
@@ -295,20 +294,26 @@ impl App {
         }
 
         // Validate
+        let mut error: Option<&str> = None;
         if !image_list.is_empty() {
-            panic!("Error: Invalid image outside of app definition");
+            error = Some("Error: Invalid image outside of app definition");
         } else if !env_list.is_empty() {
-            panic!("Error: Invalid environment variable outside of app definition");
+            error = Some("Error: Invalid environment variable outside of app definition");
         } else if !port_list.is_empty() {
-            panic!("Error: Invalid port outside of app definition");
+            error = Some("Error: Invalid port outside of app definition");
         } else if !volume_list.is_empty() {
-            panic!("Error: Invalid volume outside of app definition");
+            error = Some("Error: Invalid volume outside of app definition");
         } else if !depends_on_list.is_empty() {
-            panic!("Error: Invalid depends-on outside of app definition");
+            error = Some("Error: Invalid depends-on outside of app definition");
         } else if !domain_list.is_empty() {
-            panic!("Error: Invalid domain outside of app definition");
+            error = Some("Error: Invalid domain outside of app definition");
         } else if !email_list.is_empty() {
-            panic!("Error: Invalid email outside of app definition");
+            error = Some("Error: Invalid email outside of app definition");
+        }
+
+        if let Some(error) = error {
+            eprintln!("{}", error);
+            std::process::exit(1);
         }
 
         for app in &app_list {
@@ -320,13 +325,15 @@ impl App {
                 }
             }
             if count > 1 {
-                panic!("Error: App name must be unique");
+                eprintln!("Error: App name must be unique");
+                std::process::exit(1);
             }
 
             // ensure every app depends on an app that exists, but not itself
             for dependency in &app.depends_on {
                 if dependency == &app.name {
-                    panic!("Error: App cannot depend on itself");
+                    eprintln!("Error: App cannot depend on itself");
+                    std::process::exit(1);
                 }
                 let mut found = false;
                 for other_app in &app_list {
@@ -336,7 +343,8 @@ impl App {
                     }
                 }
                 if !found {
-                    panic!("Error: App depends on an app that does not exist");
+                    eprintln!("Error: App depends on an app that does not exist");
+                    std::process::exit(1);
                 }
             }
 
@@ -347,7 +355,8 @@ impl App {
                 }
                 for dependency in &other_app.depends_on {
                     if dependency == &app.name && app.depends_on.contains(&other_app.name) {
-                        panic!("Error: Two apps cannot depend on each other");
+                        eprintln!("Error: Two apps cannot depend on each other");
+                        std::process::exit(1);
                     }
                 }
             }
@@ -380,7 +389,8 @@ impl App {
                 return;
             }
             if in_process.contains(node) {
-                panic!("Error: Circular dependency detected");
+                eprintln!("Error: Circular dependency detected");
+                std::process::exit(1);
             }
 
             in_process.insert(node.to_owned());
@@ -402,7 +412,7 @@ impl App {
             }
         }
 
-        // Reverse stack
+        // Collect sorted apps
         let sorted: Vec<App> = stack
             .iter()
             .map(|name| {
@@ -422,7 +432,7 @@ impl App {
     {
         let indices: Vec<usize> = args.indices_of(flag).unwrap_or_default().collect();
         let values: Vec<T> = args.get_many(flag).unwrap_or_default().cloned().collect();
-
+        
         let mut flags: Vec<Flag<T>> = vec![];
         for i in 0..indices.len() {
             flags.push(Flag {

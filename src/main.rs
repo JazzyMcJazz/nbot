@@ -15,7 +15,13 @@ static DOCKER: Lazy<Docker> = Lazy::new(|| Docker::connect_with_local_defaults()
 
 #[tokio::main]
 async fn main() {
-    DOCKER.ping().await.expect("Docker is not running");
+    match DOCKER.ping().await {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Error connecting to Docker: {}", e);
+            std::process::exit(1);
+        }
+    }
 
     let _app_state = AppState::from_storage();
     let matches = args::get_matches();
