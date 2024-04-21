@@ -24,6 +24,12 @@ impl Run {
             }
         }
 
+        // Clone project to compare with updated project
+        let project_clone = match app_state.projects.iter().find(|p| p.name == project.name) {
+            Some(p) => p.clone(),
+            None => project.clone(),
+        };
+
         // Update app_state and save
         app_state.add_or_update_project(&project);
 
@@ -40,7 +46,16 @@ impl Run {
 
         let apps = App::topological_sort_by_dependenceis(&project.apps);
         for app in &apps {
-            let started = app.run(&vec![&networks.0, &networks.1]).await;
+            let app_clone = match project_clone.apps.iter().find(|a| a.name == app.name) {
+                Some(a) => a.clone(),
+                None => app.clone(),
+            };
+
+            let force_container_rebuild = &app_clone.ne(app);
+
+            let started = app
+                .run(&vec![&networks.0, &networks.1], force_container_rebuild)
+                .await;
             sleep(std::time::Duration::from_secs(1));
 
             if !started {

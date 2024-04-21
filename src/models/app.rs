@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{docker, utils::networks::Network, APP_STATE};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct App {
     pub name: String,
     pub image: String,
@@ -23,8 +23,8 @@ pub struct App {
 }
 
 impl App {
-    pub async fn run(&self, networks: &Vec<&Network>) -> bool {
-        if self.is_using_latest_image().await && self.is_running().await {
+    pub async fn run(&self, networks: &Vec<&Network>, force: &bool) -> bool {
+        if !force && self.is_using_latest_image().await && self.is_running().await {
             return true;
         }
 
