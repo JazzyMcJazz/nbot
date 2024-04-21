@@ -31,7 +31,7 @@ impl App {
         self.stop().await;
         self.remove().await;
 
-        let result = docker::containers::create_from_app(self).await;
+        let result = docker::containers::create_from_app(self, Some(networks)).await;
         let container = match result {
             Ok(container) => container,
             Err(e) => {
@@ -82,7 +82,7 @@ impl App {
                 return false;
             }
         } else {
-            let container = docker::containers::create_from_app(self).await;
+            let container = docker::containers::create_from_app(self, None).await;
             let Ok(_) = container else {
                 eprintln!("Error creating container");
                 return false;

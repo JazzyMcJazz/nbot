@@ -1,6 +1,9 @@
-use crate::utils::contants::{
-    NGINX_CERT_VOLUME, NGINX_CONFD_VOLUME, NGINX_CONTAINER_NAME, NGINX_HTML_VOLUME,
-    NGINX_IMAGE_NAME, NGINX_MEDIA_VOLUME, NGINX_STATIC_VOLUME,
+use crate::utils::{
+    contants::{
+        NGINX_CERT_VOLUME, NGINX_CONFD_VOLUME, NGINX_CONTAINER_NAME, NGINX_HTML_VOLUME,
+        NGINX_IMAGE_NAME, NGINX_MEDIA_VOLUME, NGINX_STATIC_VOLUME,
+    },
+    networks::Network,
 };
 use bollard::{
     container::{
@@ -35,7 +38,10 @@ pub async fn find_by_name(name: &str) -> Option<ContainerSummary> {
     Some(containers[0].clone())
 }
 
-pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, String> {
+pub async fn create_from_app(
+    app: &App,
+    networks: Option<&Vec<&Network>>,
+) -> Result<ContainerCreateResponse, String> {
     let app = app.clone();
 
     let image = match images::try_find_or_pull(&app.image, None).await {
@@ -50,18 +56,6 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
         platform: None,
     });
 
-    // let port_bindings = {
-    //     app.port.as_ref().map(|port| {
-    //         HashMap::from([(
-    //             format!("{}/tcp", port),
-    //             Some(vec![PortBinding {
-    //                 host_ip: Some("0.0.0.0".to_string()),
-    //                 host_port: Some(port.to_string()),
-    //             }]),
-    //         )])
-    //     })
-    // };
-
     let host_config = Some(HostConfig {
         // port_bindings,
         init: Some(true),
@@ -71,15 +65,18 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
     });
 
     let mut endpoints_config = HashMap::new();
-
-    for network in app.network_aliases {
-        endpoints_config.insert(
-            network.clone(),
-            EndpointSettings {
-                aliases: Some(vec![network]),
-                ..Default::default()
-            },
-        );
+    if let Some(networks) = networks {
+        for network in networks {
+            if let Network::Internal(name) = network {
+                endpoints_config.insert(
+                    name.clone(),
+                    EndpointSettings {
+                        aliases: Some(app.network_aliases.clone()),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
     }
 
     let networking_config = Some(NetworkingConfig { endpoints_config });
