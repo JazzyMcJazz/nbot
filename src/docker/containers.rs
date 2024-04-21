@@ -50,20 +50,20 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
         platform: None,
     });
 
-    let port_bindings = {
-        app.port.as_ref().map(|port| {
-            HashMap::from([(
-                format!("{}/tcp", port),
-                Some(vec![PortBinding {
-                    host_ip: Some("0.0.0.0".to_string()),
-                    host_port: Some(port.to_string()),
-                }]),
-            )])
-        })
-    };
+    // let port_bindings = {
+    //     app.port.as_ref().map(|port| {
+    //         HashMap::from([(
+    //             format!("{}/tcp", port),
+    //             Some(vec![PortBinding {
+    //                 host_ip: Some("0.0.0.0".to_string()),
+    //                 host_port: Some(port.to_string()),
+    //             }]),
+    //         )])
+    //     })
+    // };
 
     let host_config = Some(HostConfig {
-        port_bindings,
+        // port_bindings,
         init: Some(true),
         privileged: Some(app.privileged),
         binds: Some(app.volumes.clone()),
