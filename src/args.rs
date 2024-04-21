@@ -155,6 +155,14 @@ pub fn get_matches() -> ArgMatches {
                         .required(false)
                         .action(ArgAction::Append)
                 )
+                .arg(
+                    Arg::new("cmd")
+                        .short('c')
+                        .long("cmd")
+                        .help("Command to run in the container (optional, defaults to none)")
+                        .required(false)
+                        .action(ArgAction::Append)
+                )
         )
         .subcommand(
             Command::new("start")

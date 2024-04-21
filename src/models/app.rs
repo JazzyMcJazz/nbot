@@ -19,6 +19,7 @@ pub struct App {
     pub openssl: Option<bool>,
     pub privileged: bool,
     pub network_aliases: Vec<String>,
+    pub cmd: Option<String>,
 }
 
 impl App {
@@ -144,6 +145,8 @@ impl App {
         let mut email_list = Self::collect_flags::<String>(args, "email");
         let mut privileged_list = Self::collect_flags::<bool>(args, "privileged");
         let mut network_aliases_list = Self::collect_flags::<String>(args, "network-alias");
+        let mut cmd_list = Self::collect_flags::<String>(args, "cmd");
+
         let uses_openssl = args.get_flag("openssl");
 
         let mut app_list: Vec<App> = vec![];
@@ -268,9 +271,23 @@ impl App {
                 }
             }
 
+            let mut cmd: Option<String> = None;
+            while let Some(cmd_flag) = cmd_list.pop() {
+                if cmd_flag.index > app.index {
+                    if cmd.is_some() {
+                        eprintln!("Error: App cannot have more than one cmd");
+                        std::process::exit(1);
+                    }
+                    cmd = Some(cmd_flag.value);
+                } else {
+                    cmd_list.push(cmd_flag);
+                    break;
+                }
+            }
+
             if virtual_port.is_none() && domains.is_some() {
                 virtual_port = Some("80".to_owned());
-            } 
+            }
 
             if email.is_none() && domains.is_some() {
                 eprintln!("Error: App must have an email if it has domains. This is required for SSL certificates.");
@@ -290,6 +307,7 @@ impl App {
                 openssl,
                 privileged,
                 network_aliases,
+                cmd,
             });
         }
 
@@ -432,7 +450,7 @@ impl App {
     {
         let indices: Vec<usize> = args.indices_of(flag).unwrap_or_default().collect();
         let values: Vec<T> = args.get_many(flag).unwrap_or_default().cloned().collect();
-        
+
         let mut flags: Vec<Flag<T>> = vec![];
         for i in 0..indices.len() {
             flags.push(Flag {

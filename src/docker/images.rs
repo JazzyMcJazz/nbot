@@ -1,5 +1,5 @@
 use bollard::{
-    image::{BuildImageOptions, ListImagesOptions},
+    image::{BuildImageOptions, CreateImageOptions, ListImagesOptions},
     secret::ImageSummary,
 };
 use futures_util::stream::StreamExt;
@@ -96,4 +96,33 @@ pub async fn build_nginx() {
             }
         }
     }
+}
+
+pub async fn try_find_or_pull(image_name: &str, tag: Option<&str>) -> Option<ImageSummary> {
+    let image = find_by_name(image_name, tag).await;
+    if let Some(image) = image {
+        return Some(image);
+    }
+
+    let (image_name, tag) = match image_name.split_once(':') {
+        Some((name, tag)) => (name, tag),
+        None => (image_name, "latest"),
+    };
+    let options = Some(CreateImageOptions {
+        from_image: image_name,
+        tag,
+
+        ..Default::default()
+    });
+
+    println!("Pulling image: {}", image_name);
+    let mut stream = DOCKER.create_image(options, None, None);
+    while let Some(result) = stream.next().await {
+        match result {
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+
+    find_by_name(image_name, Some(tag)).await
 }

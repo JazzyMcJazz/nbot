@@ -40,9 +40,9 @@ impl Run {
 
         let apps = App::topological_sort_by_dependenceis(&project.apps);
         for app in &apps {
+            let started = app.run(&vec![&networks.0, &networks.1]).await;
             sleep(std::time::Duration::from_secs(1));
 
-            let started = app.run(&vec![&networks.0, &networks.1]).await;
             if !started {
                 println!("{}: failed", app.name);
                 continue;
@@ -87,7 +87,7 @@ impl Run {
                 Nginx::add_conf(app).await;
             } else {
                 // check if container is up
-                for seconds in 1..15 {
+                for seconds in 1..3 {
                     sleep(std::time::Duration::from_secs(seconds));
 
                     let container = docker::containers::find_by_name(&app.container_name).await;

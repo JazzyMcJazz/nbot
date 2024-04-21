@@ -125,7 +125,10 @@ impl Nginx {
             return;
         }
 
-        let domains = app.domains.as_ref().expect("domains not found when adding conf");
+        let domains = app
+            .domains
+            .as_ref()
+            .expect("domains not found when adding conf");
         if domains.is_empty() {
             return;
         }

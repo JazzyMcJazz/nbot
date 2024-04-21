@@ -13,7 +13,7 @@ mod utils;
 static APP_STATE: Lazy<AppState> = Lazy::new(AppState::from_storage);
 static DOCKER: Lazy<Docker> = Lazy::new(|| Docker::connect_with_local_defaults().unwrap());
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     match DOCKER.ping().await {
         Ok(_) => {}

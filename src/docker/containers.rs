@@ -15,6 +15,8 @@ use std::{collections::HashMap, default::Default};
 
 use crate::{models::App, APP_STATE, DOCKER};
 
+use super::images;
+
 pub async fn find_by_name(name: &str) -> Option<ContainerSummary> {
     let mut filters = HashMap::new();
     filters.insert("name".to_owned(), vec![name.to_owned()]);
@@ -35,6 +37,14 @@ pub async fn find_by_name(name: &str) -> Option<ContainerSummary> {
 
 pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, String> {
     let app = app.clone();
+
+    let image = match images::try_find_or_pull(&app.image, None).await {
+        Some(i) => i,
+        None => {
+            return Err(format!("Image not found: {}", app.image));
+        }
+    };
+
     let options = Some(CreateContainerOptions {
         name: &app.container_name,
         platform: None,
@@ -56,7 +66,6 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
         port_bindings,
         init: Some(true),
         privileged: Some(app.privileged),
-
         binds: Some(app.volumes.clone()),
         ..Default::default()
     });
@@ -74,12 +83,16 @@ pub async fn create_from_app(app: &App) -> Result<ContainerCreateResponse, Strin
     }
 
     let networking_config = Some(NetworkingConfig { endpoints_config });
+    let cmd: Option<Vec<String>> = app
+        .cmd
+        .map(|cmd| cmd.split_whitespace().map(|s| s.to_string()).collect());
 
     let config = Config {
-        image: Some(app.image),
+        image: Some(image.id),
         env: Some(app.env_vars),
         host_config,
         networking_config,
+        cmd,
         ..Default::default()
     };
 
@@ -160,7 +173,7 @@ pub async fn start_nginx() -> bool {
 
 pub async fn run_nginx() -> bool {
     let image = super::images::find_by_name(NGINX_IMAGE_NAME, Some("latest")).await;
-        
+
     let Some(image) = image else {
         eprintln!("Nginx image not found");
         std::process::exit(1);
@@ -209,9 +222,7 @@ pub async fn run_nginx() -> bool {
         ..Default::default()
     };
 
-    let container = DOCKER
-        .create_container(options, config)
-        .await;
+    let container = DOCKER.create_container(options, config).await;
 
     let Ok(container) = container else {
         eprintln!("Error creating nginx container");
