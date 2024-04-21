@@ -162,6 +162,7 @@ pub fn get_matches() -> ArgMatches {
                         .help("Command to run in the container (optional, defaults to none)")
                         .required(false)
                         .action(ArgAction::Append)
+                        .allow_hyphen_values(true)
                 )
         )
         .subcommand(
